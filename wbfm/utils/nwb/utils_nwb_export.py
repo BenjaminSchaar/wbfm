@@ -3,13 +3,15 @@ import os
 import re
 from pathlib import Path
 
+from dask import compute, delayed
 import dask.array as da
 import numpy as np
 import scipy
 # from hdmf_zarr import NWBZarrIO
 from matplotlib import pyplot as plt
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries
-from pynwb.behavior import BehavioralTimeSeries
+from hdmf.common import DynamicTable, VectorData
+from pynwb.behavior import BehavioralTimeSeries, SpatialSeries, Position
 from pynwb.image import ImageSeries
 from pynwb.ophys import ImageSegmentation, PlaneSegmentation, RoiResponseSeries, Fluorescence, DfOverF
 from hdmf.data_utils import GenericDataChunkIterator
@@ -20,10 +22,12 @@ from hdmf.backends.hdf5.h5_utils import H5DataIO
 # ndx_mulitchannel_volume is the novel NWB extension for multichannel optophysiology in C. elegans
 from ndx_multichannel_volume import CElegansSubject, OpticalChannelReferences, OpticalChannelPlus, ImagingVolume, \
     MultiChannelVolume, MultiChannelVolumeSeries, SegmentationLabels
+from skimage.measure import regionprops
 from tifffile import tifffile
 from tqdm.auto import tqdm
 from wbfm.utils.external.utils_pandas import convert_binary_columns_to_one_hot
 
+import itertools
 from wbfm.utils.projects.finished_project_data import ProjectData
 from wbfm.utils.external.utils_neuron_names import int2name_neuron
 from wbfm.utils.projects.utils_project_status import check_all_needed_data_for_step
@@ -562,9 +566,8 @@ def convert_traces_and_tracking_to_nwb(nwbfile, segmentation_video, gce_quant_di
     rate = physical_units_class.volumes_per_second
 
     # Extract the blobs (with time series) from red and green
-    print("Extracting segmentation ids...")
     blobquant_red, blobquant_green, blobquant_ratio = None, None, None
-    for idx in tqdm(gce_quant_red['blob_ix'].unique(), leave=False, disable=not DEBUG):
+    for idx in tqdm(gce_quant_red['blob_ix'].unique(), leave=False, disable=not DEBUG, desc="Extracting segmentation ids..."):
         blob_red = gce_quant_red[gce_quant_red['blob_ix'] == idx]
         blobquant_red = _add_blob(blob_red, blobquant_red)
 
@@ -1373,3 +1376,141 @@ class CustomDataChunkIterator(GenericDataChunkIterator):
 
     def _get_dtype(self):
         return self.array.dtype
+
+
+def df_to_nwb_tracking(df, timestamps=None, reference_frame="unknown", unit="pixels"):
+    """
+    Converts a MultiIndex DataFrame to NWB SpatialSeries + object-ID table.
+
+    df: pandas DataFrame indexed by, e.g., time and object_id, with cols x,y,z,raw_segmentation_id
+    timestamps: array of timestamps aligned to df.index (first level should be time)
+
+    """
+    if not isinstance(df.columns, pd.MultiIndex):
+        raise ValueError("Expected df.columns to be a MultiIndex of (neuron_id, coord)")
+
+    neuron_ids = df.columns.get_level_values(0).unique()
+    coord_names = ['x', 'y', 'z']  # or whatever coordinates you have
+    if not all(c in df.columns.get_level_values(1) for c in coord_names):
+        coord_names = None
+    if timestamps is None:
+        timestamps = np.arange(len(df.index))
+
+    # Build DynamicTable of neurons with correct raw segmentation IDs for all time points
+    dt = DynamicTable(name="NeuronSegmentationID", description="Segmentation IDs per neuron", id=timestamps)
+    for nid in tqdm(neuron_ids, desc="Adding neuron IDs to DynamicTable"):
+        seg_ids = df.loc[:, (nid, 'raw_segmentation_id')].values
+        dt.add_column(name=str(nid), description=f"Raw Seg ID for {nid}", data=seg_ids)
+
+    if coord_names is not None:
+        position = Position(name="NeuronCentroids")
+        for neuron in tqdm(neuron_ids, desc="Adding centroids to Position"):
+            neuron_df = df[neuron]
+            data = neuron_df[coord_names].to_numpy()
+
+            ss = SpatialSeries(
+                name=neuron,
+                data=data,
+                unit=unit,
+                reference_frame=reference_frame,
+                timestamps=timestamps
+            )
+            position.add_spatial_series(ss)
+    else:
+        position = None
+
+    return position, dt
+
+
+def load_per_neuron_position(nwbfile_module):
+    data_dict = {}
+    timestamps = None
+
+    for series in nwbfile_module.spatial_series.values():
+        data = series.data[:]
+        neuron = series.name
+        coords = ['x', 'y', 'z'][:data.shape[1]]
+        for i, coord in enumerate(coords):
+            data_dict[(neuron, coord)] = data[:, i]
+        if timestamps is None:
+            timestamps = series.timestamps[:]
+
+    df = pd.DataFrame(data_dict, index=timestamps)
+    df.columns = pd.MultiIndex.from_tuples(df.columns)
+    return df
+
+
+def compute_centroids_parallel(seg_dask, intensity_dask=None):
+    """
+    Compute centroids for each label in each timepoint using dask.delayed
+    
+    Args:
+        seg_dask: dask array (T, X, Y, Z), integer labels
+        intensity_dask (optional): dask array (T, X, Y, Z), intensity values
+    Returns:
+        centroids: dict {time: {raw_segmentation_index: (x, y, z)}}
+    """
+    def process_timepoint(seg, intensity, t):
+        props = regionprops(seg.astype(int), intensity_image=intensity)
+        centroids_t = {}
+        for prop in props:
+            if intensity is not None:
+                centroid = tuple(float(c) for c in prop.weighted_centroid)
+            else:
+                centroid = tuple(float(c) for c in prop.centroid)
+            label = int(prop.label)
+            centroids_t[label] = centroid
+        return t, centroids_t
+
+    tasks = []
+    n_timepoints = seg_dask.shape[0]
+    for t in range(n_timepoints):
+        seg = seg_dask[t]
+        if intensity_dask is not None:
+            intensity = intensity_dask[t]
+        else:
+            intensity = None
+        tasks.append(delayed(process_timepoint)(seg, intensity, t))
+
+    results = compute(*tasks, scheduler='threads')  # or 'processes'
+    # Assemble into dict
+    centroids = {t: centroids_t for t, centroids_t in results}
+    return centroids
+
+
+def add_centroid_data_to_df_tracking(seg_dask, df_tracking, df_tracking_offset=0):
+    """df_tracking should have a column that matches the raw segmentation id in each time point to the true or tracked ids"""
+
+    # This doesn't have centroid information, so add it in
+    centroids_dict = compute_centroids_parallel(seg_dask)
+    # Based on the segmentation ids in tracking_df, create the xyz columns that should be added
+    all_neurons = list(df_tracking.columns.get_level_values(0).unique())
+    # A dict with 3 entries per neuron: (neuron, x), (neuron, y), (neuron, z) -> (respective array)
+    coord_names = ['x', 'y', 'z']
+    all_keys = itertools.product(all_neurons, coord_names)
+    def _init_nan_numpy():
+        _array = np.empty(np.max(df_tracking.index.values))  # Should not be the shape of df_tracking, which might have empty rows
+        _array[:] = np.nan
+        return _array
+    mapped_centroids_dict = {k: _init_nan_numpy() for k in all_keys}
+    
+    # Note that df_tracking is 1-indexed, so the index will have to be fixed later
+    for t, these_centroids in tqdm(centroids_dict.items(), desc="Mapping centroids to segmentation"):
+        for neuron in all_neurons:
+            try:
+                raw_seg = df_tracking.loc[t+df_tracking_offset, (neuron, 'raw_segmentation_id')]
+            except KeyError:
+                raw_seg = np.nan
+            if np.isnan(raw_seg):
+                continue
+            try:
+                this_centroid = these_centroids[int(raw_seg)]
+            except KeyError:
+                logging.error(f"Ground truth was annotated as {int(raw_seg)} at t={t}, but it doesn't exist in the image")
+            for _name, _c in zip(coord_names, this_centroid):
+                mapped_centroids_dict[(neuron, _name)][t] = _c
+    # Convert to dataframe, then combine with original tracking dataframe
+    df_centroids = pd.DataFrame(mapped_centroids_dict)
+    df_tracking = pd.concat([df_centroids, df_tracking], axis=1)
+
+    return df_tracking

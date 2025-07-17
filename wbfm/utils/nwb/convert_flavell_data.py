@@ -8,16 +8,17 @@ from datetime import datetime
 from hdmf.backends.hdf5.h5_utils import H5DataIO
 import glob
 import argparse
-from wbfm.utils.nwb.utils_nwb_export import CustomDataChunkIterator
-from wbfm.utils.nwb.utils_nwb_export import build_optical_channel_objects, _zimmer_microscope_device
+from wbfm.utils.nwb.utils_nwb_export import CustomDataChunkIterator, build_optical_channel_objects, _zimmer_microscope_device, add_centroid_data_to_df_tracking, df_to_nwb_tracking
 import dask.array as da
 from tqdm import tqdm
+import json
+import pandas as pd
 
 
 def iter_volumes(base_dir, n_start, n_timepoints, channel=None, segmentation=False):
     """Yield 3D volumes for a given channel. If a file is missing, yield an array of zeros with the correct shape."""
     zero_shape = None
-    for t in tqdm(range(n_start, n_timepoints), leave=False):
+    for t in tqdm(range(n_start, n_timepoints), leave=False, desc=f"Iterating through volumes from video: channel={channel}, segmentation={segmentation}"):
         pattern = get_flavell_timepoint_pattern(base_dir, t, channel, segmentation)
         matches = glob.glob(pattern)
         if matches:
@@ -58,6 +59,41 @@ def get_flavell_timepoint_pattern(base_dir, t, channel=0, segmentation=False):
         return f'{base_dir}/NRRD_cropped/*_t{t_str}_ch{channel}.nrrd'
     else:
         return f'{base_dir}/img_roi_watershed/{t}.nrrd'
+
+
+def get_flavell_tracking_file(base_dir):
+    """Get the glob pattern for tracking data in NRRD_cropped."""
+    tracking_pattern = f'{base_dir}/*inv_map.json'
+    tracking_files = glob.glob(tracking_pattern)
+    if not tracking_files:
+        raise FileNotFoundError(f"No tracking files found in {base_dir} with pattern {tracking_pattern}")
+    if len(tracking_files) > 1:
+        raise RuntimeError(f"Multiple tracking files found in {base_dir}: {tracking_files}. Please ensure only one exists.")    
+    return tracking_files[0]
+
+
+def convert_flavell_tracking_to_df(base_dir, tracking_fraction_threshold=0.5):
+    """Convert Flavell tracking data to DataFrame format."""
+    tracking_file = get_flavell_tracking_file(base_dir)
+    with open(tracking_file, 'r') as f:
+        tracking_data = json.load(f)
+        # Build DataFrame: rows=time, columns=UIDs (i.e. neuron names), values=segmentation id (of the raw segmentation)
+        df = pd.DataFrame.from_dict(tracking_data, orient='index').T
+        # Flatten any list values in the DataFrame; Some UIDs may have multiple segmentation IDs... technically should be the union of the two
+        df = df.applymap(lambda x: x[0] if isinstance(x, list) else x)
+        # Remove objects with too few tracking points
+        df = df.loc[:, df.notna().sum() >= tracking_fraction_threshold * len(df)]
+
+        # Convert datatypes
+        df.index.name = 'time'
+        df.index = [int(i) for i in df.index]
+        df.sort_index(inplace=True)
+        
+        df.columns = df.columns.astype(str)
+
+        # Add MultiIndex columns if desired
+        df.columns = pd.MultiIndex.from_product([df.columns, ['raw_segmentation_id']])
+    return df
 
 
 def find_min_max_timepoint(base_dir, channel=None, segmentation=False):
@@ -110,7 +146,7 @@ def count_valid_segmentations(base_dir, n_timepoints):
 def dask_stack_volumes(volume_iter, frame_shape):
     """Stack a generator of volumes into a dask array."""
     # Each block is a single volume (3D), stacked along axis=0 (time)
-    return da.stack([da.from_array(vol, chunks=frame_shape) for vol in volume_iter], axis=0)
+    return da.stack(volume_iter, axis=0)
 
 
 def create_nwb_file_only_images(session_description, identifier, session_start_time, device_name, imaging_rate):
@@ -153,8 +189,8 @@ def convert_flavell_to_nwb(
 
     # Count valid frames for each channel
     if DEBUG:
-        start_frame, end_frame = 1, 10
-        print("DEBUG mode: limiting to first 10 time points")
+        start_frame, end_frame = 1, 20
+        print(f"DEBUG mode: limiting to frames {start_frame} to {end_frame}")
     else:
         min_green, n_green = find_min_max_timepoint(base_dir, 1, False)
         min_red, n_red = find_min_max_timepoint(base_dir, 2, False)
@@ -172,15 +208,15 @@ def convert_flavell_to_nwb(
     except StopIteration:
         raise RuntimeError("No green channel volumes found. Check your input data and n_frames value.")
     frame_shape = first_green.shape
-    print(f"Found {end_frame-start_frame} frames for each channel with shape {frame_shape}")
 
     # Build dask arrays for each channel
     green_dask = dask_stack_volumes(iter_volumes(base_dir, start_frame, end_frame, 1), frame_shape)
     red_dask = dask_stack_volumes(iter_volumes(base_dir, start_frame, end_frame, 2), frame_shape)
-    print(f"Found red video with shape {red_dask.shape} and green video with shape {green_dask.shape}")
     seg_dask = dask_stack_volumes(iter_volumes(base_dir, start_frame, end_frame, segmentation=True), frame_shape)
+    
+    print(f"Found red video with shape {red_dask.shape} and green video with shape {green_dask.shape}")
     print(f"Found segmentation data with shape {seg_dask.shape}")
-
+    
     # Make single multi-channel data series
     # Flavell data is already TXYZ, so stack to make a 5D TXYZC array
     red_green_dask = da.stack([red_dask, green_dask], axis=-1)
@@ -228,7 +264,7 @@ def convert_flavell_to_nwb(
         description='Calcium time series metadata, segmentation, and fluorescence data'
     )
     calcium_imaging_module.add(MultiChannelVolumeSeries(
-        name="RawCalciumSeriesSegmentation",
+        name="CalciumSeriesSegmentationUntracked",
         description="Series of indexed masks associated with calcium segmentation",
         comments="Segmentation masks for calcium imaging data from Flavell lab",
         data=seg_data,  # data here should be series of indexed masks
@@ -243,6 +279,21 @@ def convert_flavell_to_nwb(
         imaging_volume=CalcImagingVolume,
     ))
 
+    # Add tracking information
+    df_tracking = convert_flavell_tracking_to_df(base_dir)
+    if df_tracking.empty:
+        raise RuntimeError("No tracking data found in the specified base directory.")
+    
+    df_tracking = add_centroid_data_to_df_tracking(seg_dask, df_tracking, df_tracking_offset=1)
+    
+    position, dt = df_to_nwb_tracking(df_tracking)
+    if position is not None:
+        calcium_imaging_module.add(position)
+    else:
+        raise ValueError("Position should be created")
+
+    calcium_imaging_module.add(dt)
+
     with NWBHDF5IO(output_path, 'w') as io:
         io.write(nwbfile)
     print(f"Done. NWB file written to {output_path}")
@@ -251,7 +302,8 @@ def convert_flavell_to_nwb(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Convert Flavell data to NWB format.")
-    parser.add_argument('--base_dir', type=str, required=True, help='Base directory containing input data')
+    parser.add_argument('--base_dir', type=str, required=True, help='Base directory containing input data, including: NRRD_cropped and img_roi_watershed folders and' \
+        '.json files with tracking data')
     parser.add_argument('--output_path', type=str, required=False, help='Output NWB file path')
     parser.add_argument('--session_description', type=str, default='Flavell Lab Data', help='Session description')
     parser.add_argument('--identifier', type=str, default='flavell_001', help='NWB file identifier')

@@ -3,6 +3,7 @@ import zarr
 from wbfm.utils.projects.finished_project_data import ProjectData
 from wbfm.utils.external.utils_zarr import zip_raw_data_zarr
 import dask.array as da
+import argparse
 
 
 def unpack_nwb_to_project_structure(project_dir, nwb_path=None):
@@ -62,9 +63,9 @@ def unpack_nwb_to_project_structure(project_dir, nwb_path=None):
         red_zarr_zip_path = zip_raw_data_zarr(red_zarr_path)
         green_zarr_zip_path = zip_raw_data_zarr(green_zarr_path)
         # Update the config file with these paths; this is actually the main config
-        cfg.config['red_fname'] = str(cfg.unresolve_absolute_path(red_zarr_zip_path))
-        cfg.config['green_fname'] = str(cfg.unresolve_absolute_path(green_zarr_zip_path))
-        cfg.update_self_on_disk()
+        preproc_cfg.config['preprocessed_red_fname'] = str(preproc_cfg.unresolve_absolute_path(red_zarr_zip_path))
+        preproc_cfg.config['preprocessed_green_fname'] = str(preproc_cfg.unresolve_absolute_path(green_zarr_zip_path))
+        preproc_cfg.update_self_on_disk()
     else:
         project_data.logger.info("No preprocessed video data found in the NWB file.")
 
@@ -95,7 +96,7 @@ def unpack_nwb_to_project_structure(project_dir, nwb_path=None):
     if project_data.segmentation is not None:
         traces_cfg = cfg.get_traces_config()
         final_seg_dir = traces_cfg.absolute_subfolder
-        if os.path.exists(final_seg_dir):
+        if not os.path.exists(final_seg_dir):
             raise FileNotFoundError(f"Expected final segmentation directory at {final_seg_dir}")
         reindexed_masks_path = traces_cfg.resolve_relative_path_from_config("reindexed_masks")
         # Ensure the directory exists
@@ -125,3 +126,17 @@ def unpack_nwb_to_project_structure(project_dir, nwb_path=None):
     # Reload the project data to ensure all paths are updated
     project_data.logger.info("NWB unpacking complete. See project structure below for details.")
     project_data = ProjectData.load_final_project_data_from_config(project_dir)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Convert Flavell data to NWB format.")
+    parser.add_argument('--project_dir', type=str, required=True, help='Base directory containing project')
+    parser.add_argument('--nwb_path', type=str, required=False, help='NWB file path')
+    parser.add_argument('--debug', action='store_true', help='')
+
+    args = parser.parse_args()
+
+    unpack_nwb_to_project_structure(
+        project_dir=args.project_dir,
+        nwb_path=args.nwb_path,
+    )
