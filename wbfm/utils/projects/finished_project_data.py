@@ -2,9 +2,6 @@ import concurrent
 import logging
 import shutil
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
-
-from imutils import MicroscopeDataReader
 
 from wbfm.utils.external.utils_pandas import combine_columns_with_suffix
 
@@ -800,7 +797,7 @@ class ProjectData:
         project_config = ModularProjectConfig(None)
         obj = ProjectData(nwb_path, project_config, **kwargs)
 
-        # Initialize the relevant fields
+        # Fluorescence data
         preprocessing_settings = PreprocessingSettings()
         obj.project_config._preprocessing_class = preprocessing_settings
         if 'CalciumImageSeries' in nwb_obj.acquisition:
@@ -823,7 +820,7 @@ class ProjectData:
             preprocessing_settings._raw_green_data = da.from_array(nwb_obj.acquisition['RawCalciumImageSeries'].data, chunks=chunks)[..., 1].transpose(
                 (0, 3, 1, 2))
 
-        # Note that there should always be 'CalciumActivity' but it may be a stub
+        # Traces
         try:
             # Load the traces, and the tracks using the same dataframes (they should all have xyz info)
             both_df_traces = convert_nwb_to_trace_dataframe(nwb_obj)
@@ -835,9 +832,20 @@ class ProjectData:
         except KeyError as e:
             obj.logger.warning(f"Could not load traces from NWB file: {e}")
 
+        # Tracking (overwrites final_tracks above, if found)
+        activity = nwb_obj.processing['CalciumActivity']
+        try:
+            from wbfm.utils.nwb.utils_nwb_export import load_per_neuron_position
+            df_tracking = load_per_neuron_position(activity['NeuronCentroids'])
+            obj.final_tracks = df_tracking
+            obj.intermediate_global_tracks = df_tracking
+        except KeyError as e:
+            obj.logger.warning(f"Could not load tracks (centroids) from NWB file: {e}")
+
+        # Segmentation
         try:
             # Transpose data from TXYZ to TZXY
-            dat = nwb_obj.processing['CalciumActivity']['CalciumSeriesSegmentation'].data
+            dat = activity['CalciumSeriesSegmentation'].data
             chunks = (1, ) + dat.shape[1:]
             obj.segmentation = da.from_array(dat, chunks=chunks).transpose((0, 3, 1, 2))
         except (KeyError, AttributeError) as e:
@@ -845,14 +853,18 @@ class ProjectData:
 
         try:
             # Transpose data from TXYZ to TZXY
-            dat = nwb_obj.processing['CalciumActivity']['RawCalciumSeriesSegmentation'].data
-            chunks = (1, ) + dat.shape
+            dat = activity['CalciumSeriesSegmentationUntracked'].data
+            chunks = (1, ) + dat.shape[1:]
             obj.raw_segmentation = da.from_array(dat, chunks=chunks).transpose((0, 3, 1, 2))
         except (KeyError, AttributeError) as e:
             # Set to be equal to the segmentation, if it exists
             if obj.segmentation is not None:
                 obj.raw_segmentation = obj.segmentation
+                obj.logger.warning(f"Could not load raw segmentation from NWB file ({e}); using tracked segmentation instead")
+            else:
+                obj.logger.warning(f"Could not load raw segmentation from NWB file: {e}")
 
+        # Other metadata
         p = PhysicalUnitConversion()
         if 'CalciumImageSeries' in nwb_obj.acquisition:
             p.volumes_per_second = nwb_obj.acquisition['CalciumImageSeries'].rate
