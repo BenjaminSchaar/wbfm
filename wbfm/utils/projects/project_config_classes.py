@@ -712,7 +712,7 @@ class ModularProjectConfig(ConfigFileWithProjectContext):
         for content in folder_for_all_channels.iterdir():
             if content.is_dir():
                 # Ulises uses UK spelling
-                if 'behaviour' in content.name or 'BH' in content.name:
+                if content.name.endswith('behaviour') or content.name.endswith('BH'):
                     behavior_subfolder = folder_for_all_channels.joinpath(content)
                     flag = True
                     break
