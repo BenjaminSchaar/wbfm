@@ -17,6 +17,7 @@ import argparse
 from dask import delayed
 from skimage.segmentation import watershed
 import logging
+from scipy import ndimage as ndi
 from tqdm.auto import tqdm
 
 
@@ -29,7 +30,7 @@ def dask_stack_volumes(volume_iter):
     """Stack a generator of volumes into a dask array along time."""
     return da.stack(volume_iter, axis=0)
 
-def segment_from_centroids_using_watershed(centroids, video, compactness=0.01, dtype=np.uint16):
+def segment_from_centroids_using_watershed(centroids, video, compactness=0.5, dtype=np.uint16):
 
     if len(video.shape) == 5:
         video = video[..., 0]  # Just take the red channel
@@ -54,24 +55,44 @@ def segment_from_centroids_using_watershed(centroids, video, compactness=0.01, d
         
         for i, (x, y, z) in enumerate(valid_centroids):
             # Convert to integer coordinates and ensure they're within bounds
-            x_int, y_int, z_int = int(round(z)), int(round(y)), int(round(x))
+            x_int, y_int, z_int = int(round(x)), int(round(y)), int(round(z))
             
             if (0 <= z_int < Z and 0 <= y_int < Y and 0 <= x_int < X):
-                markers[x_int, y_int, z_int] = i + 1  # Labels start from 1
+                # Labels start from 1, and assume the centroids are in the correct order
+                markers[x_int, y_int, z_int] = i + 1
         
         # If no valid markers, return empty segmentation
         if markers.max() == 0:
             return np.zeros_like(video_frame, dtype=dtype)
         
+        # Apply distance transform to the volume
+        distance = ndi.distance_transform_edt(video_frame)
+        
         # Apply watershed segmentation
         # try:
         segmentation = watershed(
-            -video_frame, 
+            -distance, 
             markers, 
             compactness=compactness,
-            mask=video_frame>0,
+            mask=video_frame > 2,
             watershed_line=False
         )
+
+        # Remap segmentation so each region gets the marker label that seeded it (watershed skips missing indices)  
+        unique_labels = np.unique(segmentation)
+        remapped = np.zeros_like(segmentation, dtype=dtype)
+        for label in unique_labels:
+            if label == 0:
+                continue  # background
+            # Find which marker generated this region
+            mask = (segmentation == label)
+            marker_labels = markers[mask]
+            marker_labels = marker_labels[marker_labels > 0]
+            if len(marker_labels) > 0:
+            # Assign the most common marker label to the region
+                new_label = np.bincount(marker_labels).argmax()
+            remapped[mask] = new_label
+        segmentation = remapped
         # yield da.from_array(segmentation.astype(dtype))
         return segmentation.astype(dtype)
                 
