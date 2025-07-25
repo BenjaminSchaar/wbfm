@@ -126,7 +126,7 @@ def main():
         trial_dirs = trial_dirs[:1]
 
     for trial_dir in trial_dirs:
-        trial_name = trial_dir.name
+        trial_name = "/"+trial_dir.name
         barlow_model_path = trial_dir / args.model_fname
         if not barlow_model_path.is_file():
             print(f"Warning: Model file not found: {barlow_model_path} - skipping {trial_name}")
