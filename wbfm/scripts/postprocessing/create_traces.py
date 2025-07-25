@@ -80,7 +80,7 @@ def submit_copy_job(trial_name, finished_path, new_location, make_project_script
 
 
 def submit_tracking_job(trial_name, new_location, barlow_model, track_script, dependency_jobid, debug=False):
-    project_path = f"{new_location}/{trial_name}"
+    project_path = f"{new_location}{trial_name}"
     cmd = (
         f"python {track_script} "
         f"with project_path={project_path} "
@@ -90,7 +90,7 @@ def submit_tracking_job(trial_name, new_location, barlow_model, track_script, de
     return write_and_submit_job(trial_name, "track", cmd, dependency=dependency_jobid, debug=debug)
 
 def submit_trace_job(trial_name, new_location, dispatcher_script, dependency_jobid, debug=False):
-    project_path = f"{new_location}/{trial_name}"
+    project_path = f"{new_location}{trial_name}"
     cmd = (
         f"sbatch {dispatcher_script} "
         f"-t {project_path} -s 4"
