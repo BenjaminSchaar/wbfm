@@ -85,7 +85,7 @@ def submit_tracking_job(trial_name, new_location, barlow_model, track_script, de
         f"python {track_script} "
         f"with project_path={project_path} "
         f"model_fname={barlow_model} "
-        f"use_projection_space=False"
+        f"use_projection_space=True"
     )
     return write_and_submit_job(trial_name, "track", cmd, dependency=dependency_jobid, debug=debug)
 
