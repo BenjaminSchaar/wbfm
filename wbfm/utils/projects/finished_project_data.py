@@ -842,6 +842,23 @@ class ProjectData:
         except KeyError as e:
             obj.logger.warning(f"Could not load tracks (centroids) from NWB file: {e}")
 
+        try:
+            df_seg_id = activity['NeuronSegmentationID'].to_dataframe()
+            # This is a dataframe with neuron names as columns, and segmentation ids as values
+            # We want to join this as a subcolumn within the final_tracks dataframe, but first it needs to be made multiindexed with the column name 'raw_segmentation_id'
+            df_seg_id.columns = pd.MultiIndex.from_product([df_seg_id.columns, ['raw_segmentation_id']])
+            df_tracking = obj.final_tracks
+            if df_tracking is not None:
+                df_seg_id.index = df_tracking.index
+                df_tracking = pd.concat([df_tracking, df_seg_id], axis=1)
+            else:
+                obj.logger.warning("No final tracks found, saving only segmentation ids")
+                df_tracking = df_seg_id
+            obj.final_tracks = df_tracking
+        except KeyError as e:
+            obj.logger.warning(f"Could not load segmentation ids from NWB file: {e}")
+
+
         # Segmentation
         try:
             # Transpose data from TXYZ to TZXY

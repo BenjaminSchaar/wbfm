@@ -6,28 +6,35 @@ Contains code for the pipeline, GUI, and analysis code for the paper:
 This repository contains python code for analyzing raw volumetric images in two channels: red (tracking) and green (activity).
 
 
-# Installation for running
+# Installation
 
-This project is designed to be installed with Anaconda, and requires two external local packages to be installed.
+This project is designed to be installed with Anaconda.
 However, there are different use cases, some of which have easier installation steps.
 Please check all sections below to determine which is best for you.
 
-## If you just want to run the GUI
+
+## Running the full pipeline
+
+
+
+
+## Just the GUI
 
 See [GUI README](wbfm/gui/README.md)
 
 
-## On the cluster
+## On the cluster (zimmer lab)
 
-If you just want to run the code (most people), then you can use the pre-installed environments installed on the cluster, which can be activated using:
+If you just want to run the pipeline (most people), then you can use the pre-installed environments installed on the cluster, which can be activated using:
 ```
 conda activate /lisc/scratch/neurobiology/zimmer/.conda/envs/wbfm/
 ```
 
-## Local installation
+## Dev installation (local, for editing)
 
 In principle this is rare, and only for developers or if you want to run the full pipeline on your local machine.
 See: [detailed installation instructions](docs/installation_instructions.md)
+
 
 # Running the pipeline
 
