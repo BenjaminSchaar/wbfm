@@ -79,13 +79,13 @@ def submit_copy_job(trial_name, finished_path, new_location, make_project_script
     return write_and_submit_job(trial_name, "copy_project", cmd, debug=debug)
 
 
-def submit_tracking_job(trial_name, new_location, barlow_model, track_script, dependency_jobid, debug=False):
+def submit_tracking_job(trial_name, new_location, barlow_model, track_script, dependency_jobid, debug=False, use_projection_space=True):
     project_path = f"{new_location}{trial_name}"
     cmd = (
         f"python {track_script} "
         f"with project_path={project_path} "
         f"model_fname={barlow_model} "
-        f"use_projection_space=True"
+        f"use_projection_space={use_projection_space}"
     )
     return write_and_submit_job(trial_name, "track", cmd, dependency=dependency_jobid, debug=debug)
 
@@ -104,6 +104,7 @@ def parse_args():
     parser.add_argument("--new-location", required=True, help="Base path for new projects")
     parser.add_argument("--models-dir", required=True, help="Folder containing trial subfolders with models")
     parser.add_argument("--model-fname", default="resnet50.pth", help="Model filename inside each trial folder")
+    parser.add_argument("--use_projection_space", required=True, help="Using projection space or final embedding space")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode (runs only one trial with verbose output)")
     return parser.parse_args()
 
@@ -113,6 +114,7 @@ def main():
     make_project_script = Path(args.wbfm_home) / "scripts/postprocessing/make_project_like.py"
     track_script = Path(args.wbfm_home) / "scripts/pipeline_alternate/3-track_using_barlow.py"
     dispatcher_script = Path(args.wbfm_home) / "scripts/cluster/single_step_dispatcher.sbatch"
+    use_projection_space = args.use_projection_space
 
     # NEW: Extract parent folder name (e.g. "2025_07_01")
     finished_path_parent = Path(args.finished_path).parent.name
@@ -151,7 +153,7 @@ def main():
             # Track
             track_jobid = submit_tracking_job(
                 trial_name, project_base_path, str(barlow_model_path), track_script,
-                dependency_jobid=copy_jobid, debug=args.debug
+                dependency_jobid=copy_jobid, debug=args.debug, use_projection_space=use_projection_space
             )
 
             # Extract traces
