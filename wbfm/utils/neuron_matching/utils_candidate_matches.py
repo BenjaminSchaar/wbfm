@@ -207,7 +207,7 @@ def matches_to_sparse_matrix(matches_with_conf, shape=None):
 def rename_columns_using_matching(df_base, df_to_rename, column='raw_neuron_ind_in_list',
                                   try_to_fix_inf=False):
     """
-    Aligns the names of df0 with the names of df1 based on bipartite matching on column
+    Aligns the names of df_to_rename with the names of df_base based on bipartite matching on column
     Drops columns without a match
 
     Note: can't really handle nan or inf values in either matrix unless try_to_fix_inf=True
