@@ -132,7 +132,7 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         self.changeChannelDropdown.currentIndexChanged.connect(self.update_trace_subplot)
         self.vbox1.addWidget(self.changeChannelDropdown)
 
-        # Change traces vs tracklet mode
+        # Change traces vs tracklet mode (we need the class even if we don't have the button)
         self.changeTraceTrackletDropdown = QtWidgets.QComboBox()
         self.changeTraceTrackletDropdown.addItems(['traces', 'tracklets'])
         self.changeTraceTrackletDropdown.currentIndexChanged.connect(self.change_trace_tracklet_mode)
@@ -151,10 +151,21 @@ class NapariTraceExplorer(QtWidgets.QWidget):
 
         # More complex groupBoxes:
         self._setup_trace_filtering_buttons()
+        self._setup_layer_creation_buttons()
         if self.load_tracklets:
             self._setup_tracklet_correction_buttons()
-        # self._setup_gt_correction_shortcut_buttons()
-        self._setup_segmentation_correction_buttons()
+            # self._setup_gt_correction_shortcut_buttons()
+            self._setup_segmentation_correction_buttons()
+
+        # Move full saving button out into it's own section
+        self.groupBox7SaveData = QtWidgets.QGroupBox("Saving Data", self.verticalLayoutWidget)
+        self.formlayout7 = QtWidgets.QFormLayout(self.groupBox7SaveData)
+        self.mainSaveButton = QtWidgets.QPushButton("Save all to disk")
+        self.mainSaveButton.pressed.connect(self.save_everything_to_disk)
+        msg = "IDs"
+        if self.load_tracklets:
+            msg = f"Masks, Tracklets, and {msg}"
+        self.formlayout7.addRow(msg, self.mainSaveButton)
 
         self.verticalLayout.addWidget(self.groupBox1NeuronSelection)
         self.verticalLayout.addWidget(self.groupBox2TraceCalculation)
@@ -298,9 +309,14 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         self.changeReferenceTrace.currentIndexChanged.connect(self.update_reference_trace)
         self.formlayout3.addRow("Reference trace:", self.changeReferenceTrace)
 
+    def _setup_layer_creation_buttons(self):
+        self.groupBox5LayerCreation = QtWidgets.QGroupBox("New layer creation", self.verticalLayoutWidget)
+        self.formlayout8 = QtWidgets.QFormLayout(self.groupBox5LayerCreation)
+
         self.addReferenceHeatmap = QtWidgets.QPushButton("Add Layer")
         self.addReferenceHeatmap.pressed.connect(self.add_layer_colored_by_correlation_to_current_neuron)
-        self.formlayout3.addRow("Correlation to current trace:", self.addReferenceHeatmap)
+        self.formlayout8.addRow("Correlation to current trace:", self.addReferenceHeatmap)
+
 
     def _setup_general_shortcut_buttons(self):
         self.groupBox3b = QtWidgets.QGroupBox("General shortcuts", self.verticalLayoutWidget)
@@ -450,10 +466,6 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         self.splitSegmentationSaveButton1 = QtWidgets.QPushButton("Save to RAM")
         self.splitSegmentationSaveButton1.pressed.connect(self.modify_segmentation_using_manual_correction)
         self.formlayout6.addRow("Save candidate mask: ", self.splitSegmentationSaveButton1)
-
-        self.mainSaveButton = QtWidgets.QPushButton("SAVE ALL TO DISK")
-        self.mainSaveButton.pressed.connect(self.save_everything_to_disk)
-        self.formlayout6.addRow("*Masks, Tracklets, and IDs*", self.mainSaveButton)
 
         self.saveSegmentationStatusLabel = QtWidgets.QLabel("No segmentation loaded")
         self.formlayout6.addRow("STATUS: ", self.saveSegmentationStatusLabel)
