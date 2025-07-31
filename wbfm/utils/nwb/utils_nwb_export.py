@@ -205,7 +205,8 @@ def nwb_using_project_data(project_data: ProjectData, include_image_data=True, o
         behavior_time_series_dict['eigenworms'] = video_class.eigenworms(fluorescence_fps=True, reset_index=False)
         # Also add a dataframe of the discrete behaviors
         from wbfm.utils.general.utils_behavior_annotation import BehaviorCodes
-        discrete_time_series_names = BehaviorCodes.default_state_hierarchy(use_strings=True)
+        discrete_time_series_names = BehaviorCodes.default_state_hierarchy(use_strings=True,
+                                                                           include_self_collision=True)
         df_discrete = video_class.calc_behavior_from_alias(discrete_time_series_names, include_slowing=True,
                                                            reset_index=False)
         idx = behavior_time_series_dict['continuous_behaviors']['velocity'].index

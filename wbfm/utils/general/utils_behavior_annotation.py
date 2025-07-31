@@ -492,7 +492,8 @@ class BehaviorCodes(Flag):
             return individual_names
 
     @classmethod
-    def default_state_hierarchy(cls, use_strings=False):
+    def default_state_hierarchy(cls, use_strings=False,
+                                include_slowing=True, include_self_collision=False):
         """
         Returns the default state hierarchy for this behavior
 
@@ -500,8 +501,12 @@ class BehaviorCodes(Flag):
         -------
 
         """
-        vec = [cls.REV, cls.VENTRAL_TURN, cls.DORSAL_TURN, cls.PAUSE, cls.SLOWING, cls.FWD,
+        vec = [cls.REV, cls.VENTRAL_TURN, cls.DORSAL_TURN, cls.PAUSE, cls.FWD,
                cls.TRACKING_FAILURE, cls.UNKNOWN]
+        if include_slowing:
+            vec.insert(3, cls.SLOWING)
+        if include_self_collision:
+            vec.insert(1, cls.SELF_COLLISION)
         if use_strings:
             return [v.name for v in vec]
         else:
