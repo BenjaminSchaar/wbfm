@@ -5,19 +5,22 @@ from wbfm.utils.performance.comparing_ground_truth import calculate_accuracy_fro
 
 
 
-fname = "/lisc/scratch/neurobiology/zimmer/schwartz/traces_mit_debug_embed/2025_07_01trial_28/project_config.yaml"
-project_data_gcamp = ProjectData.load_final_project_data_from_config(fname)
+fname_gt = "/lisc/scratch/neurobiology/zimmer/fieseler/wbfm_projects_future/flavell_data/images_for_charlie/flavell_data.nwb"
+project_data_gt = ProjectData.load_final_project_data_from_config(fname_gt)
+
+fname_res = "/lisc/scratch/neurobiology/zimmer/schwartz/traces_mit_debug_embed/2025_07_01trial_28/project_config.yaml"
+project_data_res = ProjectData.load_final_project_data_from_config(fname_res)
 
 
 
-neuron_names = project_data_gcamp.finished_neuron_names()
 
-df_pipeline = project_data_gcamp.initial_pipeline_tracks[neuron_names]
-df_gt = project_data_gcamp.final_tracks[neuron_names]
+df_res = project_data_gt.final_tracks
+df_gt = project_data_res.final_tracks
 
-print(df_pipeline.head())
+print(df_res.head())
 print(df_gt.head())
-#opt = dict(column_names=['raw_neuron_ind_in_list'])
+opt = dict(column_names=['raw_segmentation_id'])
 
-#df_acc_pipeline = calculate_accuracy_from_dataframes(df_gt, df_pipeline, **opt)
+#df_acc_pipeline = calculate_accuracy_from_dataframes(df_gt, df_res, **opt)
+#print(df_acc_pipeline)
 
