@@ -64,3 +64,7 @@ def main(_config, _run):
         logging.info("Making default grid plots")
         project_data = ProjectData.load_final_project_data(project_cfg, allow_hybrid_loading=True)
         make_grid_plot_from_project(project_data, channel_mode='all', calculation_mode='integration')
+
+        # By default make some visualizations
+        project_data = ProjectData.load_final_project_data(project_cfg, **project_kwargs)
+        make_default_summary_plots_using_config(project_data)
