@@ -4,12 +4,10 @@ from collections import defaultdict
 import numpy as np
 import zarr
 
-from wbfm.utils import traces
 from wbfm.utils.external.utils_zarr import zip_raw_data_zarr
 from wbfm.utils.general.postprocessing.utils_metadata import region_props_all_volumes, \
     _convert_nested_dict_to_dataframe
 from wbfm.utils.projects.finished_project_data import ProjectData
-from wbfm.utils.projects.project_config_classes import SubfolderConfigFile, ModularProjectConfig
 from wbfm.utils.projects.utils_project import safe_cd
 from wbfm.utils.traces.traces_pipeline import _unpack_configs_for_traces, match_segmentation_and_tracks, \
     _unpack_configs_for_extraction, _save_traces_as_hdf_and_update_configs

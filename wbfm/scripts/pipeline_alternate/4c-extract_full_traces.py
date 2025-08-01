@@ -12,6 +12,7 @@ from sacred import SETTINGS
 # main function
 from sacred.observers import TinyDbObserver
 from wbfm.utils.external.monkeypatch_json import using_monkeypatch
+from wbfm.utils.visualization.plot_traces import make_default_summary_plots_using_config
 
 from wbfm.pipeline.traces import extract_traces_using_config
 from wbfm.utils.projects.finished_project_data import ProjectData
@@ -66,5 +67,5 @@ def main(_config, _run):
         make_grid_plot_from_project(project_data, channel_mode='all', calculation_mode='integration')
 
         # By default make some visualizations
-        project_data = ProjectData.load_final_project_data(project_cfg, **project_kwargs)
+        project_data = ProjectData.load_final_project_data(project_cfg, allow_hybrid_loading=True)
         make_default_summary_plots_using_config(project_data)
