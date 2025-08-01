@@ -126,12 +126,6 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         self.changeNeuronDropdown.currentIndexChanged.connect(self._select_neuron_using_dropdown)
         self.vbox1.addWidget(self.changeNeuronDropdown)
 
-        self.changeChannelDropdown = QtWidgets.QComboBox()
-        self.changeChannelDropdown.addItems(['green', 'red', 'ratio', 'linear_model', 'df_over_f_20', 'dr_over_r_20'])
-        self.changeChannelDropdown.setCurrentText('ratio')
-        self.changeChannelDropdown.currentIndexChanged.connect(self.update_trace_subplot)
-        self.vbox1.addWidget(self.changeChannelDropdown)
-
         # Change traces vs tracklet mode (we need the class even if we don't have the button)
         self.changeTraceTrackletDropdown = QtWidgets.QComboBox()
         self.changeTraceTrackletDropdown.addItems(['traces', 'tracklets'])
@@ -229,6 +223,12 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         # Change traces (dropdown)
         self.groupBox2TraceCalculation = QtWidgets.QGroupBox("Trace calculation options", self.verticalLayoutWidget)
         self.formlayout3 = QtWidgets.QFormLayout(self.groupBox2TraceCalculation)
+
+        self.changeChannelDropdown = QtWidgets.QComboBox()
+        self.changeChannelDropdown.addItems(['green', 'red', 'ratio', 'linear_model', 'df_over_f_20', 'dr_over_r_20'])
+        self.changeChannelDropdown.setCurrentText('ratio')
+        self.changeChannelDropdown.currentIndexChanged.connect(self.update_trace_subplot)
+        self.formlayout3.addRow("Trace calculation mode:", self.changeChannelDropdown)
 
         if self.load_tracklets:
             self.changeSubplotMarkerDropdown = QtWidgets.QComboBox()
