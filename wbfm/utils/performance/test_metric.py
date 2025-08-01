@@ -1,13 +1,52 @@
-from wbfm.utils.projects.finished_project_data import ProjectData
-from wbfm.utils.general.high_performance_pandas import get_names_from_df
-from wbfm.utils.neuron_matching.utils_candidate_matches import rename_columns_using_matching
+import argparse
+import os
 import pandas as pd
 import numpy as np
-from wbfm.utils.performance.comparing_ground_truth import calculate_accuracy_from_dataframes, calc_accuracy_of_pipeline_steps
+from wbfm.utils.projects.finished_project_data import ProjectData
+from wbfm.utils.neuron_matching.utils_candidate_matches import rename_columns_using_matching
 
 
+def pad_with_nan_rows(df: pd.DataFrame, target_length: int) -> pd.DataFrame:
+    """
+    Pads the given DataFrame with NaN rows until it reaches the specified target length.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame to pad.
+    target_length : int
+        The desired number of rows.
 
-def calculate_accuracy(df_gt, df_pred):
+    Returns
+    -------
+    pd.DataFrame
+        A new DataFrame with NaN rows appended if it was shorter than target_length.
+    """
+    if len(df) < target_length:
+        missing_rows = target_length - len(df)
+        new_index = range(df.index.max() + 1, df.index.max() + 1 + missing_rows)
+        nan_rows = pd.DataFrame(np.nan, index=new_index, columns=df.columns)
+        return pd.concat([df, nan_rows])
+    return df
+
+
+def calculate_accuracy(df_gt: pd.DataFrame, df_pred: pd.DataFrame) -> dict:
+    """
+    Calculate accuracy, misses, and mismatches between ground truth and prediction DataFrames.
+
+    Parameters
+    ----------
+    df_gt : pd.DataFrame
+        Ground truth DataFrame containing segmentation IDs.
+    df_pred : pd.DataFrame
+        Predicted DataFrame containing segmentation IDs.
+
+    Returns
+    -------
+    dict
+        Dictionary containing counts of misses, mismatches, total ground truth detections, 
+        and the calculated accuracy.
+    """
     # Align both DataFrames on the same rows and columns
     common_index = df_gt.index.intersection(df_pred.index)
     common_columns = df_gt.columns.intersection(df_pred.columns)
@@ -15,17 +54,12 @@ def calculate_accuracy(df_gt, df_pred):
     df_gt = df_gt.loc[common_index, common_columns]
     df_pred = df_pred.loc[common_index, common_columns]
 
-    # Conditions:
-    # Ground truth has a value
-    gt_valid = ~df_gt.isna()
+    # Conditions
+    gt_valid = ~df_gt.isna()  # Ground truth has a value
 
-    # Miss: ground truth valid, prediction NaN
-    misses = (gt_valid) & (df_pred.isna())
+    misses = gt_valid & df_pred.isna()  # GT valid, prediction is NaN
+    mismatches = gt_valid & (~df_pred.isna()) & (df_gt != df_pred)  # Both valid but differ
 
-    # Mismatch: both valid but values differ
-    mismatches = (gt_valid) & (~df_pred.isna()) & (df_gt != df_pred)
-
-    # Count
     total_misses = misses.sum().sum()
     total_mismatches = mismatches.sum().sum()
     total_gt_detections = gt_valid.sum().sum()
@@ -40,25 +74,95 @@ def calculate_accuracy(df_gt, df_pred):
     }
 
 
-print("Loading data ...")
-fname_gt = "/lisc/scratch/neurobiology/zimmer/fieseler/wbfm_projects_future/flavell_data/images_for_charlie/flavell_data.nwb"
-project_data_gt = ProjectData.load_final_project_data(fname_gt)
+def process_trial(trial: int, df_gt: pd.DataFrame, res_file: str) -> dict:
+    """
+    Process a single trial: load results, match columns, pad rows, and compute accuracy.
 
-fname_res = "/lisc/scratch/neurobiology/zimmer/schwartz/traces_mit_debug_embed/2025_07_01trial_28/project_config.yaml"
-project_data_res = ProjectData.load_final_project_data(fname_res)
+    Parameters
+    ----------
+    trial : int
+        The trial number being processed.
+    df_gt : pd.DataFrame
+        Ground truth DataFrame.
+    res_file : str
+        Path to the trial's result configuration file.
 
-print("Calculating accuracy ...")
+    Returns
+    -------
+    dict
+        Dictionary containing trial number and accuracy stats.
+    """
+    try:
+        # Load result data
+        project_data_res = ProjectData.load_final_project_data(res_file)
+        df_res = project_data_res.final_tracks
+
+        # Match lengths
+        max_len = max(len(df_res), len(df_gt))
+        df_res = pad_with_nan_rows(df_res, max_len)
+        df_gt_padded = pad_with_nan_rows(df_gt, max_len)
+
+        # Match columns using neuron matching
+        df_res_renamed, _, _, _ = rename_columns_using_matching(
+            df_gt_padded, df_res, column='raw_segmentation_id', try_to_fix_inf=True
+        )
+
+        # Reduce both DataFrames to raw_segmentation_id level
+        df_res_renamed = df_res_renamed.xs('raw_segmentation_id', axis=1, level=1)
+        df_gt_padded = df_gt_padded.xs('raw_segmentation_id', axis=1, level=1)
+
+        # Calculate accuracy
+        stats = calculate_accuracy(df_gt_padded, df_res_renamed)
+        stats["trial"] = trial
+        return stats
+
+    except Exception as e:
+        print(f"Trial {trial}: ERROR during processing -> {e}")
+        return {"trial": trial, "error": str(e)}
 
 
-df_res = project_data_res.final_tracks
-df_gt = project_data_gt.final_tracks
-nan_rows = pd.DataFrame(np.nan, index=[len(df_res), len(df_res)+1], columns=df_res.columns)
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate tracking accuracy across multiple trials.")
+    parser.add_argument("--ground_truth_path", required=True, help="Path to the ground truth NWB file")
+    parser.add_argument("--res_path", required=True, help="Path to the directory containing trial runs")
+    parser.add_argument("--trial_dir_prefix", default="", help="Optional prefix for trial directories (e.g. 2025_07_01)")
+    parser.add_argument("--trials", required=True, help="Either a list of trial numbers [1,2,3] or a single integer for range 0..N-1")
 
-df_res = pd.concat([df_res, nan_rows])
+    args = parser.parse_args()
 
-df_res_renamed, _ , _ , _ = rename_columns_using_matching(df_gt, df_res, column='raw_segmentation_id', try_to_fix_inf=True)
+    # Parse trials
+    if args.trials.startswith("["):
+        trials = eval(args.trials)
+    else:
+        trials = list(range(int(args.trials)))
 
-df_res_renamed = df_res_renamed.xs('raw_segmentation_id', axis=1, level=1)
-df_gt = df_gt.xs('raw_segmentation_id', axis=1, level=1)
+    print(f"Loading ground truth from {args.ground_truth_path} ...")
+    project_data_gt = ProjectData.load_final_project_data(args.ground_truth_path)
+    df_gt = project_data_gt.final_tracks
 
-print(calculate_accuracy(df_gt, df_res_renamed))
+    results = []
+    for trial in trials:
+        trial_dir = f"{args.trial_dir_prefix}trial_{trial}" if args.trial_dir_prefix else f"trial_{trial}"
+        res_file = os.path.join(args.res_path, trial_dir, "project_config.yaml")
+
+        if not os.path.exists(res_file):
+            print(f"Trial {trial}: Skipping, result file not found at {res_file}")
+            continue
+
+        print(f"\nProcessing trial {trial} ...")
+        stats = process_trial(trial, df_gt, res_file)
+        results.append(stats)
+        if "error" not in stats:
+            print(f"Trial {trial}: {stats}")
+
+    # Optionally print summary
+    print("\nSummary:")
+    for res in results:
+        if "error" in res:
+            print(f"Trial {res['trial']}: ERROR -> {res['error']}")
+        else:
+            print(f"Trial {res['trial']}: Accuracy {res['accuracy']:.4f} (Misses: {res['misses']}, Mismatches: {res['mismatches']})")
+
+
+if __name__ == "__main__":
+    main()
