@@ -171,8 +171,8 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         self.verticalLayout.addWidget(self.groupBox2TraceCalculation)
         if self.load_tracklets:
             self.verticalLayout.addWidget(self.groupBox3TrackletCorrection)
-        # self.verticalLayout.addWidget(self.groupBox5)
-        self.verticalLayout.addWidget(self.groupBox6SegmentationCorrection)
+            # self.verticalLayout.addWidget(self.groupBox5)
+            self.verticalLayout.addWidget(self.groupBox6SegmentationCorrection)
 
         try:
             self.initialize_track_layers()
