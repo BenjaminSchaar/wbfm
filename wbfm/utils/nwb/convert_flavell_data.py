@@ -89,7 +89,7 @@ def convert_flavell_tracking_to_df(base_dir, tracking_fraction_threshold=0.5):
         # Translate from 1-based to 0-based indexing
         df.index = [int(i) - 1 for i in df.index]
         df.sort_index(inplace=True)
-        
+        # Needed for NWB compatibility
         df.columns = df.columns.astype(str)
 
         # Add MultiIndex columns if desired
