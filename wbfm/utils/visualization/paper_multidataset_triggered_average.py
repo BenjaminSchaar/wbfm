@@ -120,7 +120,9 @@ class PaperColoredTracePlotter:
                 if k + suffix not in color_mapping:
                     color_mapping[k + suffix] = color_mapping[k]
         if neuron_name not in color_mapping:
-            raise ValueError(f"Neuron name {neuron_name} not found in color mapping")
+            logging.warning(f"Neuron name {neuron_name} not found in color mapping; using default color")
+            # Use a default color (black)
+            color_mapping[neuron_name] = 'black'
         return color_mapping[neuron_name]
 
 
