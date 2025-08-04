@@ -26,14 +26,19 @@ def extract_val_loss(trial_path):
         return None
 
 
-def discover_trials(trial_parent_dir, prefix):
+def discover_trials(trial_parent_dir):
+    """
+    Discovers trial numbers from folders named 'trial_<number>' in the given directory.
+    """
     trials = []
     for entry in os.listdir(trial_parent_dir):
-        if entry.startswith(f"{prefix}trial_"):
-            match = re.search(r'trial_(\d+)', entry)
+        entry_path = os.path.join(trial_parent_dir, entry)
+        if os.path.isdir(entry_path) and entry.startswith("trial_"):
+            match = re.match(r"trial_(\d+)", entry)
             if match:
                 trials.append(int(match.group(1)))
     return sorted(trials)
+
 
 
 def build_final_dict(gt_path, trial_dir, result_dir, trial_prefix):
@@ -52,7 +57,7 @@ def build_final_dict(gt_path, trial_dir, result_dir, trial_prefix):
         "accuracy": [],
     }
 
-    trials = discover_trials(trial_dir, trial_prefix)
+    trials = discover_trials(trial_dir)
 
     for trial_num in trials:
         trial_name = f"{trial_prefix}trial_{trial_num}"
