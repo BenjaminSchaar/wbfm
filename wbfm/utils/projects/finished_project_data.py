@@ -714,6 +714,9 @@ class ProjectData:
                 fields_to_load = [
                     ("red_data", True),
                     ("green_data", True),
+                    ("red_traces", True),
+                    ("green_traces", True),
+                    ("segmentation", True),
                     ("raw_segmentation", True),
                     ("final_tracks", False),
                     ("intermediate_global_tracks", False),
