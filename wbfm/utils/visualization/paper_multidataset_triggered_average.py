@@ -160,9 +160,10 @@ class PaperMultiDatasetTriggeredAverage(PaperColoredTracePlotter):
         if self.trace_opt is not None:
             trace_base_opt.update(self.trace_opt)
 
-        if self.trigger_opt is None:
-            self.trigger_opt = dict(min_duration=4, gap_size_to_remove=4,
-                                    max_num_points_after_event=40, fixed_num_points_after_event=None)
+        trigger_base_opt = dict(min_duration=4, gap_size_to_remove=4, max_num_points_after_event=40, fixed_num_points_after_event=None)
+        if self.trigger_opt is not None:
+            trigger_base_opt.update(self.trigger_opt)
+        self.trigger_opt = trigger_base_opt
 
         # Set each project to use physical time
         for proj in self.all_projects.values():
