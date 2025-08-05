@@ -32,60 +32,74 @@ def pad_with_nan_rows(df: pd.DataFrame, target_length: int) -> pd.DataFrame:
 
 def calculate_accuracy(df_gt: pd.DataFrame, df_pred: pd.DataFrame) -> dict:
     """
-    Calculate overall, per-neuron (column), and per-timepoint (row) accuracy
-    between ground truth and predicted DataFrames.
+    Calculate overall, per-neuron, and per-timepoint accuracy,
+    along with normalized misses and mismatches.
 
     Parameters
     ----------
     df_gt : pd.DataFrame
-        Ground truth DataFrame with shape (timepoints, neurons).
+        Ground truth DataFrame (rows: timepoints, columns: neurons).
     df_pred : pd.DataFrame
-        Predicted DataFrame with same shape and column names as df_gt.
+        Prediction DataFrame (same shape and labeling as df_gt).
 
     Returns
     -------
     dict
-        Contains overall accuracy, per-neuron accuracy (Series),
-        per-timepoint accuracy (Series), and counts of misses and mismatches.
+        Dictionary with overall accuracy, and normalized error metrics.
     """
-    # Align both DataFrames on the same rows and columns
+    # Align both DataFrames
     common_index = df_gt.index.intersection(df_pred.index)
     common_columns = df_gt.columns.intersection(df_pred.columns)
 
     df_gt = df_gt.loc[common_index, common_columns]
     df_pred = df_pred.loc[common_index, common_columns]
 
-    # Validity masks
+    # Validity checks
     gt_valid = ~df_gt.isna()
-    pred_valid = ~df_pred.isna()
+    pred_nan = df_pred.isna()
+    pred_valid = ~pred_nan
+    correct = df_gt == df_pred
 
-    # Conditions
-    misses = gt_valid & ~pred_valid
-    mismatches = gt_valid & pred_valid & (df_gt != df_pred)
+    # Error types
+    misses = gt_valid & pred_nan
+    mismatches = gt_valid & pred_valid & (~correct)
 
+    # Totals
     total_misses = misses.sum().sum()
     total_mismatches = mismatches.sum().sum()
     total_gt_detections = gt_valid.sum().sum()
 
-    overall_accuracy = 1 - (total_misses + total_mismatches) / total_gt_detections
+    accuracy = 1 - (total_misses + total_mismatches) / total_gt_detections
 
-    # Per-column (neuron) accuracy
-    total_per_neuron = gt_valid.sum(axis=0)
-    errors_per_neuron = (misses + mismatches).sum(axis=0)
-    per_neuron_accuracy = 1 - (errors_per_neuron / total_per_neuron)
+    # Per-neuron (column-wise)
+    gt_valid_per_neuron = gt_valid.sum(axis=0)
+    correct_per_neuron = (gt_valid & correct).sum(axis=0)
+    accuracy_per_neuron = correct_per_neuron / gt_valid_per_neuron
 
-    # Per-row (timepoint) accuracy
-    total_per_timepoint = gt_valid.sum(axis=1)
-    errors_per_timepoint = (misses + mismatches).sum(axis=1)
-    per_timepoint_accuracy = 1 - (errors_per_timepoint / total_per_timepoint)
+    misses_per_neuron_norm = misses.sum(axis=0) / gt_valid_per_neuron
+    mismatches_per_neuron_norm = mismatches.sum(axis=0) / gt_valid_per_neuron
+
+    # Per-timepoint (row-wise)
+    gt_valid_per_time = gt_valid.sum(axis=1)
+    correct_per_time = (gt_valid & correct).sum(axis=1)
+    accuracy_per_timepoint = correct_per_time / gt_valid_per_time
+
+    misses_per_timepoint_norm = misses.sum(axis=1) / gt_valid_per_time
+    mismatches_per_timepoint_norm = mismatches.sum(axis=1) / gt_valid_per_time
 
     return {
-        "accuracy": overall_accuracy,
         "misses": int(total_misses),
         "mismatches": int(total_mismatches),
         "total_ground_truth": int(total_gt_detections),
-        "per_neuron_accuracy": per_neuron_accuracy,
-        "per_timepoint_accuracy": per_timepoint_accuracy
+        "accuracy": accuracy,
+
+        "accuracy_per_neuron": accuracy_per_neuron,
+        "accuracy_per_timepoint": accuracy_per_timepoint,
+
+        "misses_per_neuron_norm": misses_per_neuron_norm,
+        "misses_per_timepoint_norm": misses_per_timepoint_norm,
+        "mismatches_per_neuron_norm": mismatches_per_neuron_norm,
+        "mismatches_per_timepoint_norm": mismatches_per_timepoint_norm,
     }
 
 
