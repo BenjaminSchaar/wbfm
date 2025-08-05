@@ -17,7 +17,7 @@ from wbfm.utils.visualization.utils_segmentation import _unpack_config_reindexin
 
 def match_segmentation_and_tracks_using_config(project_data: ProjectData,
                                                allow_only_global_tracker: bool = False,
-                                               match_using_indices: bool = False,
+                                               match_using_indices: bool = True,
                                                DEBUG: bool = False) -> None:
     """
     Connect the 3d traces to previously segmented masks
@@ -150,7 +150,7 @@ def reindex_segmentation_using_config(project_data: ProjectData, DEBUG=False):
     return out_fname
 
 
-def full_step_4_make_traces_from_config(project_cfg, allow_only_global_tracker=False, 
+def full_step_4_make_traces_from_config(project_cfg, allow_only_global_tracker=False, match_using_indices=True, 
                                         DEBUG=False, **project_kwargs):
     project_dir = project_cfg.project_dir
     project_data = ProjectData.load_final_project_data(project_cfg, **project_kwargs)
@@ -161,6 +161,7 @@ def full_step_4_make_traces_from_config(project_cfg, allow_only_global_tracker=F
         # Overwrites matching pickle object; nothing needs to be reloaded
         match_segmentation_and_tracks_using_config(project_data,
                                                    allow_only_global_tracker=allow_only_global_tracker,
+                                                   match_using_indices=match_using_indices,
                                                    DEBUG=DEBUG)
 
         # Creates segmentations indexed to tracking
