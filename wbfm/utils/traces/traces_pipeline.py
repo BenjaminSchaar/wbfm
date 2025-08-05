@@ -61,7 +61,10 @@ def match_segmentation_and_tracks_using_indices(final_tracks, frame_list, all_ma
     all_neuron_ids = np.array([name2int_neuron_and_tracklet(n) for n in all_neurons], dtype=int)
     for i_volume in tqdm(frame_list, desc="Matching segmentation and tracks using segmentation indices"):
         # Get the array of matches for this time point, dropping nan values, in the format: [Final idx, segmentation idx, confidence]
-        this_seg_idx = final_tracks['raw_segmentation_id'].loc[i_volume]
+        this_seg_idx = final_tracks.loc[i_volume, (slice(None), 'raw_segmentation_id')].values
+        if len(this_seg_idx) == 0:
+            # No indices for this volume, skip
+            continue
         valid_idx = np.where(~np.isnan(this_seg_idx))[0]
         this_seg_idx = this_seg_idx[valid_idx].astype(int)
         this_final_idx = all_neuron_ids[valid_idx]
