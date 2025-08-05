@@ -2,6 +2,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from wbfm.utils.external.utils_neuron_names import name2int_neuron_and_tracklet
 
 from dask import compute, delayed
 import dask.array as da
@@ -1545,3 +1546,42 @@ def add_centroid_data_to_df_tracking(seg_dask, df_tracking, df_tracking_offset=0
     df_tracking = pd.concat([df_centroids, df_tracking], axis=1)
 
     return df_tracking
+
+
+def add_segmentation_ids_given_video_segmentation(nwb_file):
+    """
+    In the case where the final neuron centroids are saved in the nwb file, but the table mapping those ids to neuron names is not,
+    this function will add the centroid ids to the tracking dataframe.
+
+    This assumes that any segmentation will be generated from the centroids themselves, and retain the same ids as the centroids.
+    """
+    # Load the NWB file
+    with NWBHDF5IO(nwb_file, mode='r+') as nwb_io:
+        nwb_obj = nwb_io.read()
+
+        # Get the final centroid ids
+        activity = nwb_obj.processing['CalciumActivity']
+        df_tracking = load_per_neuron_position(activity['NeuronCentroids'])
+        
+        # Create nwb table with these ids
+        timestamps = df_tracking.index.values
+        neuron_ids = df_tracking.columns.get_level_values(0).unique()
+        dt = DynamicTable(name="NeuronSegmentationID", description="Segmentation IDs per neuron", id=timestamps)
+        for nid in tqdm(neuron_ids, desc="Adding neuron IDs to DynamicTable"):
+            # Create a vector with the id (i.e. column name) for each time point with a valid centroid, otherwise NaN
+            seg_ids = np.zeros(len(timestamps), dtype=float)
+            seg_ids[:] = name2int_neuron_and_tracklet(nid)  # Convert the neuron name to an integer ID
+            # Remove any invalid time points
+            valid_times = df_tracking.index[df_tracking[nid].notna()]
+            seg_ids[~np.isin(timestamps, valid_times)] = np.nan  #
+            # Add the column to the DynamicTable
+            dt.add_column(name=str(nid), description=f"Raw Seg ID for {nid}", data=seg_ids)
+
+        # Add the DynamicTable to the NWB file
+        nwb_obj.processing['CalciumActivity'].add(dt)
+
+        # Save the NWB file
+        nwb_io.write(nwb_obj)
+        
+    logging.info(f"Added segmentation IDs to NWB file {nwb_file}.")
+    return nwb_obj
