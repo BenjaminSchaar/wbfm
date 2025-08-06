@@ -848,10 +848,11 @@ class PaperMultiDatasetTriggeredAverage(PaperColoredTracePlotter):
 
         """
         df = self.get_df_triggered_from_trigger_type(trigger_type)
+        
         if remove_nonided_neurons:
-            return [n for n in df.columns if 'neuron' not in n]
+            return [n.split('_')[-1] for n in df.columns if 'neuron' not in n]
         else:
-            return list(df.columns)
+            return [n.split('_')[-1] for n in df.columns]
 
     def plot_triggered_average_multiple_neurons(self, neuron_list, trigger_type, color_list=None,
                                                 output_folder=None, **kwargs):

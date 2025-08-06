@@ -273,7 +273,46 @@ class TriggeredAverageIndices:
     z_score: bool = False
     normalize_amplitude_at_onset: bool = False
 
+    cached_ind: list = field(default=None, init=False, repr=False)
+    cache_is_valid: bool = False
+
     DEBUG: bool = False
+
+    def set_min_duration(self, value):
+        self.min_duration = value
+        self.cache_is_valid = False
+
+    def set_max_duration(self, value):
+        self.max_duration = value
+        self.cache_is_valid = False
+
+    def set_beh_vec(self, value):
+        self.behavioral_annotation = pd.Series(value)
+        self.cache_is_valid = False
+
+    def set_dict_of_events_to_keep(self, value):
+        self.dict_of_events_to_keep = value
+        self.cache_is_valid = False
+
+    def set_ind_preceding(self, value):
+        self.ind_preceding = value
+        self.cache_is_valid = False
+
+    def set_ind_delay(self, value):
+        self.ind_delay = value
+        self.cache_is_valid = False
+
+    def set_fixed_num_points_after_event(self, value):
+        self.fixed_num_points_after_event = value
+        self.cache_is_valid = False
+
+    def set_max_num_points_after_event(self, value):
+        self.max_num_points_after_event = value
+        self.cache_is_valid = False
+    
+    def set_cached_ind(self, value):
+        self.cached_ind = value
+        self.cache_is_valid = True
 
     def __post_init__(self):
         # Check the types of the behavioral annotation and state
@@ -391,7 +430,17 @@ class TriggeredAverageIndices:
         if self.trigger_on_downshift:
             binary_state = ~binary_state
 
-        all_ind = calculate_and_filter_triggered_average_indices(binary_state, **opt)
+        # I can't use an LRU cache here because the arguments are not hashable, so just create a single-value cache that invalidates if any of these args change
+
+        if self.cache_is_valid:
+            if self.cached_ind is not None:
+                all_ind = self.cached_ind
+            else:
+                all_ind = calculate_and_filter_triggered_average_indices(binary_state, **opt)
+                self.cached_ind = all_ind
+        else:
+            all_ind = calculate_and_filter_triggered_average_indices(binary_state, **opt)
+            self.cached_ind = all_ind
         return all_ind
 
     def calc_triggered_average_matrix(self, raw_trace: pd.Series, custom_ind: List[np.ndarray]=None,
@@ -2653,7 +2702,7 @@ def clustered_triggered_averages_from_dict_of_projects(all_projects: dict, clust
             trigger_opt_default.update(kwargs['trigger_opt'])
         kwargs.pop('trigger_opt')
 
-    for name, p in tqdm(all_projects.items(), leave=False):
+    for name, p in tqdm(all_projects.items(), leave=False, desc='Precalculating traces and triggered average indices'):
         try:
             triggered_averages_class = FullDatasetTriggeredAverages.load_from_project(p, trigger_opt=trigger_opt_default,
                                                                                       **kwargs)
