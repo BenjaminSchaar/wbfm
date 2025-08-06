@@ -2653,7 +2653,7 @@ def clustered_triggered_averages_from_dict_of_projects(all_projects: dict, clust
             trigger_opt_default.update(kwargs['trigger_opt'])
         kwargs.pop('trigger_opt')
 
-    for name, p in tqdm(all_projects.items()):
+    for name, p in tqdm(all_projects.items(), leave=False):
         try:
             triggered_averages_class = FullDatasetTriggeredAverages.load_from_project(p, trigger_opt=trigger_opt_default,
                                                                                       **kwargs)
@@ -2695,7 +2695,7 @@ def clustered_triggered_averages_from_dict_of_projects(all_projects: dict, clust
             assert ind_preceding == c.ind_class.ind_preceding, "ind_preceding must be the same for all datasets"
 
     # Build a combined class
-    # Clustering settings don't matter much
+    # I'm not actually using the clustering functionality, this is just an old class
     default_cluster_opt = dict(linkage_threshold=12, verbose=1)
     default_cluster_opt.update(cluster_opt)
     good_dataset_clusterer = ClusteredTriggeredAverages(df_triggered_good, **default_cluster_opt,
