@@ -101,7 +101,11 @@ def unpack_nwb_to_project_structure(project_dir, nwb_path=None):
         # Ensure the directory exists
         os.makedirs(os.path.dirname(reindexed_masks_path), exist_ok=True)
         # Save the reindexed masks as zarr
-        zarr.save_array(reindexed_masks_path, project_data.segmentation, chunks=(1,)+project_data.segmentation.shape[1:])
+        if isinstance(project_data.raw_segmentation, da.Array):
+            project_data.logger.info("Raw segmentation is a dask array; saving as zarr using dask's save functionality.")
+            da.to_zarr(project_data.segmentation, reindexed_masks_path, overwrite=True)
+        else:
+            zarr.save_array(reindexed_masks_path, project_data.segmentation, chunks=(1,)+project_data.segmentation.shape[1:])
         reindexed_masks_path_zip = zip_raw_data_zarr(reindexed_masks_path)
         # Update the config with the reindexed masks path
         traces_cfg.config['reindexed_masks'] = str(cfg.unresolve_absolute_path(reindexed_masks_path_zip))
