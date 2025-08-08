@@ -875,7 +875,7 @@ class ProjectData:
         try:
             activity = nwb_obj.processing['CalciumActivity']
             # Transpose data from TXYZ to TZXY
-            dat = activity['CalciumSeriesSegmentation'].data
+            dat = da.squeeze(activity['CalciumSeriesSegmentation'].data)
             chunks = (1, ) + dat.shape[1:]
             obj.segmentation = da.from_array(dat, chunks=chunks).transpose((0, 3, 1, 2))
         except (KeyError, AttributeError) as e:
@@ -884,7 +884,7 @@ class ProjectData:
         try:
             activity = nwb_obj.processing['CalciumActivity']
             # Transpose data from TXYZ to TZXY
-            dat = activity['CalciumSeriesSegmentationUntracked'].data
+            dat = da.squeeze(activity['CalciumSeriesSegmentationUntracked'].data)
             chunks = (1, ) + dat.shape[1:]
             obj.raw_segmentation = da.from_array(dat, chunks=chunks).transpose((0, 3, 1, 2))
         except (KeyError, AttributeError) as e:
