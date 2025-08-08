@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 import numpy as np
-
+import pandas as pd
 from wbfm.utils.external.custom_errors import IncompleteConfigFileError
 
 
@@ -52,7 +52,7 @@ class PhysicalUnitConversion:
 
     def zimmer2physical_fluorescence(self, vol0_zxy: np.ndarray) -> np.ndarray:
         """
-        Assumes that z is the 0th dimension, and x/y are 1, 2
+        Assumes that z is the 0th column, and x/y are 1, 2
 
         Parameters
         ----------
@@ -73,6 +73,29 @@ class PhysicalUnitConversion:
         zxy_in_phyical = np.hstack([z_in_physical, xy_in_physical])
 
         return zxy_in_phyical
+    
+    def zimmer2physical_final_tracks(self, df_tracks: pd.DataFrame) -> pd.DataFrame:
+        """
+        Converts the tracks from zimmer coordinates to physical coordinates.
+        Assumes that the DataFrame has multiindex columns; top level is the neuron, and second level contains (at least) 'z', 'x', 'y' in pixel space.
+
+        Parameters
+        ----------
+        df_tracks : pd.DataFrame
+            DataFrame containing tracks with columns 'z', 'x', 'y'.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with converted coordinates in physical units.
+        """
+        # Convert z, x, y columns to physical units
+        df_tracks = df_tracks.copy()
+        df_tracks.loc[:, (slice(None), 'z')] *= self.zimmer_um_per_pixel_z
+        df_tracks.loc[:, (slice(None), 'x')] *= self.zimmer_fluroscence_um_per_pixel_xy
+        df_tracks.loc[:, (slice(None), 'y')] *= self.zimmer_fluroscence_um_per_pixel_xy
+
+        return df_tracks
 
     def zimmer2physical_fluorescence_single_column(self, dat0: np.ndarray, which_col=0) -> np.ndarray:
         """Converts just a single column, in place"""
