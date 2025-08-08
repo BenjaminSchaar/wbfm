@@ -843,8 +843,9 @@ class ProjectData:
             obj.logger.warning(f"Could not load traces from NWB file: {e}")
 
         # Tracking (overwrites final_tracks above, if found)
-        activity = nwb_obj.processing['CalciumActivity']
         try:
+            activity = nwb_obj.processing['CalciumActivity']
+
             from wbfm.utils.nwb.utils_nwb_export import load_per_neuron_position
             df_tracking = load_per_neuron_position(activity['NeuronCentroids'])
             obj.final_tracks = df_tracking
@@ -853,6 +854,7 @@ class ProjectData:
             obj.logger.warning(f"Could not load tracks (centroids) from NWB file: {e}")
 
         try:
+            activity = nwb_obj.processing['CalciumActivity']
             df_seg_id = activity['NeuronSegmentationID'].to_dataframe()
             # This is a dataframe with neuron names as columns, and segmentation ids as values
             # We want to join this as a subcolumn within the final_tracks dataframe, but first it needs to be made multiindexed with the column name 'raw_segmentation_id'
@@ -871,6 +873,7 @@ class ProjectData:
 
         # Segmentation
         try:
+            activity = nwb_obj.processing['CalciumActivity']
             # Transpose data from TXYZ to TZXY
             dat = activity['CalciumSeriesSegmentation'].data
             chunks = (1, ) + dat.shape[1:]
@@ -879,6 +882,7 @@ class ProjectData:
             obj.logger.warning(f"Could not load segmentation from NWB file: {e}")
 
         try:
+            activity = nwb_obj.processing['CalciumActivity']
             # Transpose data from TXYZ to TZXY
             dat = activity['CalciumSeriesSegmentationUntracked'].data
             chunks = (1, ) + dat.shape[1:]
