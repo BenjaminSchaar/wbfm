@@ -59,6 +59,7 @@ def calculate_accuracy(df_gt: pd.DataFrame, df_pred: pd.DataFrame) -> dict:
     pred_nan = df_pred.isna()
     pred_valid = ~pred_nan
     correct = df_gt == df_pred
+    gt_valid_and_correct = (gt_valid & correct)
 
     # Error types
     misses = gt_valid & pred_nan
@@ -73,7 +74,7 @@ def calculate_accuracy(df_gt: pd.DataFrame, df_pred: pd.DataFrame) -> dict:
 
     # Per-neuron (column-wise)
     gt_valid_per_neuron = gt_valid.sum(axis=0)
-    correct_per_neuron = (gt_valid & correct).sum(axis=0)
+    correct_per_neuron = gt_valid_and_correct.sum(axis=0)
     accuracy_per_neuron = correct_per_neuron / gt_valid_per_neuron
 
     misses_per_neuron_norm = misses.sum(axis=0) / gt_valid_per_neuron
@@ -81,7 +82,7 @@ def calculate_accuracy(df_gt: pd.DataFrame, df_pred: pd.DataFrame) -> dict:
 
     # Per-timepoint (row-wise)
     gt_valid_per_time = gt_valid.sum(axis=1)
-    correct_per_time = (gt_valid & correct).sum(axis=1)
+    correct_per_time = gt_valid_and_correct.sum(axis=1)
     accuracy_per_timepoint = correct_per_time / gt_valid_per_time
 
     misses_per_timepoint_norm = misses.sum(axis=1) / gt_valid_per_time
@@ -100,6 +101,11 @@ def calculate_accuracy(df_gt: pd.DataFrame, df_pred: pd.DataFrame) -> dict:
         "misses_per_timepoint_norm": misses_per_timepoint_norm,
         "mismatches_per_neuron_norm": mismatches_per_neuron_norm,
         "mismatches_per_timepoint_norm": mismatches_per_timepoint_norm,
+
+        "misses": misses,
+        "mismatches": mismatches,
+        "gt_valid": gt_valid,
+        "gt_valid_and_correct": gt_valid_and_correct
     }
 
 
