@@ -936,6 +936,7 @@ def make_default_summary_plots_using_config(proj_dat: ProjectData):
     grid_opt['rename_neurons_using_manual_ids'] = True
     grid_opt['behavioral_correlation_shading'] = 'pc1'
     grid_opt['sort_using_shade_value'] = True
+    grid_opt['interpolate_nan'] = True
     try:
         make_grid_plot_from_project(proj_dat, **grid_opt)
     except (np.linalg.LinAlgError, ValueError, NoNeuronsError) as e:
