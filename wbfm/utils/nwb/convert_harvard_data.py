@@ -19,6 +19,7 @@ from skimage.segmentation import watershed
 import logging
 from scipy import ndimage as ndi
 from tqdm.auto import tqdm
+import time
 
 
 def iter_frames(h5_file, n_timepoints, frame_shape):
@@ -30,7 +31,7 @@ def dask_stack_volumes(volume_iter):
     """Stack a generator of volumes into a dask array along time."""
     return da.stack(volume_iter, axis=0)
 
-def segment_from_centroids_using_watershed(centroids, video, compactness=0.5, dtype=np.uint16, noise_threshold=0):
+def segment_from_centroids_using_watershed(centroids, video, compactness=0.5, dtype=np.uint16, noise_threshold=0, DEBUG=False):
 
     if len(video.shape) == 5:
         video = video[..., 0]  # Just take the red channel
@@ -40,7 +41,6 @@ def segment_from_centroids_using_watershed(centroids, video, compactness=0.5, dt
     def _iter_segment_video(video, centroids, t):
         """Segment a single timepoint using watershed"""
 
-        # for t in range(T):
         # Get video chunk
         video_frame = video[t]
         frame_centroids = centroids[t, ...]
@@ -117,6 +117,8 @@ def convert_harvard_to_nwb(input_path,
                            imaging_rate=10.0,
                            DEBUG=False):
 
+    start_time = time.time()
+    
     # === USER PARAMETERS ===
     experiment_name = input_path.split("/")[-1].split(".")[0]
     if output_path is None:
@@ -229,7 +231,7 @@ def convert_harvard_to_nwb(input_path,
         ))
 
         # Calculate segmentation using simple watershed
-        seg_dask = segment_from_centroids_using_watershed(points, imvol_dask)
+        seg_dask = segment_from_centroids_using_watershed(points, imvol_dask, DEBUG=DEBUG)
 
         chunk_seg = (1,) + frame_shape[:-1]  # chunk along time only
         print(f"Segmentations will be stored with chunk size {chunk_seg} and size {seg_dask.shape}")
@@ -257,13 +259,14 @@ def convert_harvard_to_nwb(input_path,
         with NWBHDF5IO(output_path, "w") as io:
             io.write(nwbfile)
 
-    print(f"NWB file written to {output_path}")
+    end_time = time.time()
+    print(f"NWB file written to {output_path} (total time: {end_time - start_time:.2f} seconds)")
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Convert Harvard data to NWB format.")
-    parser.add_argument('--input_path', type=str, required=True, help='Base directory containing input data as .h5')
+    parser.add_argument('--input_path', type=str, required=True, help='Full dataset as an .h5 file')
     parser.add_argument('--output_path', type=str, required=False, help='Output NWB file path')
     parser.add_argument('--session_description', type=str, default='Harvard Lab Data', help='Session description')
     parser.add_argument('--identifier', type=str, default='samuel_001', help='NWB file identifier')
