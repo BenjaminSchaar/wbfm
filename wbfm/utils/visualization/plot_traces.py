@@ -917,7 +917,11 @@ def make_default_summary_plots_using_config(proj_dat: ProjectData):
     # Note: reloads the project data to properly read the new trace h5 files
     logger = proj_dat.logger
     logger.info("Making default grid plots")
-    grid_opt = dict(channel_mode='all', calculation_mode='integration', min_nonnan=0.5)
+    grid_opt = paper_trace_settings()
+    grid_opt['channel_mode'] = 'all'
+    grid_opt['min_nonnan'] = None
+    grid_opt['interpolate_nan'] = False
+    grid_opt['rename_neurons_using_manual_ids'] = False
     try:
         make_grid_plot_from_project(proj_dat, **grid_opt)
     except NoNeuronsError:
@@ -928,8 +932,8 @@ def make_default_summary_plots_using_config(proj_dat: ProjectData):
     except (NoNeuronsError, ValueError):
         pass
     # Also save a PC1-correlated grid plot
-    grid_opt['channel_mode'] = 'ratio'
-    grid_opt['filter_mode'] = 'rolling_mean'
+    grid_opt['only_keep_confident_ids'] = False
+    grid_opt['rename_neurons_using_manual_ids'] = True
     grid_opt['behavioral_correlation_shading'] = 'pc1'
     grid_opt['sort_using_shade_value'] = True
     try:
