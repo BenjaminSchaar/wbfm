@@ -1,3 +1,4 @@
+from sched import scheduler
 import h5py
 import numpy as np
 from hdmf.backends.hdf5.h5_utils import H5DataIO
@@ -282,13 +283,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     # Start Dask dashboard for visualization
-    client = Client()
+    client = Client(processes=False)  # Use threads instead of processes
     print(f"Dask dashboard available at: {client.dashboard_link}")
     print("If running on a remote computer, you may need to set up SSH port forwarding to access the dashboard in your browser.")
     print("For example, run the following command on your local machine:")
     print("  ssh -N -L 8787:localhost:8787 <your-remote-username>@<remote-host>")
     print("Then open http://localhost:8787 in your local web browser.")
-    
+
     convert_harvard_to_nwb(
         input_path=args.input_path,
         output_path=args.output_path,
