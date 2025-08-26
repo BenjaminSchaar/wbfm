@@ -23,11 +23,17 @@ from tqdm.auto import tqdm
 import time
 from dask.distributed import Client
 
-
 def iter_frames(h5_file, n_timepoints, frame_shape):
     for i in range(n_timepoints):
-        data = h5_file[str(i)]["frame"]
+        data = h5_file[str(i)]["frame"][...]
         yield da.from_array(data, chunks=frame_shape).transpose((1, 2, 3, 0))  # Lazy loading
+
+@delayed
+def load_frame(h5_path, i):
+    with h5py.File(h5_path, "r") as h5_file:
+        data = h5_file[str(i)]["frame"][...]
+        return np.array(data).transpose((1, 2, 3, 0))  # Indirect lazy loading via dask.delayed
+
 
 def dask_stack_volumes(volume_iter):
     """Stack a generator of volumes into a dask array along time."""
@@ -212,7 +218,8 @@ def convert_harvard_to_nwb(input_path,
         # Add directly to the file to prevent hdmf.build.errors.OrphanContainerBuildError
         nwbfile.add_imaging_plane(CalcImagingVolume)
 
-        imvol_dask = dask_stack_volumes(iter_frames(f, num_frames, frame_shape))
+        # imvol_dask = dask_stack_volumes(iter_frames(f, num_frames, frame_shape))
+        imvol_dask = dask_stack_volumes([da.from_delayed(load_frame(input_path, i), shape=frame_shape, dtype=np.uint16) for i in range(num_frames)] )
         chunk_video = (1,) + imvol_dask.shape[1:-1] + (1,)
         video_data = H5DataIO(
             data=CustomDataChunkIterator(array=imvol_dask, chunk_shape=chunk_video, display_progress=True),
