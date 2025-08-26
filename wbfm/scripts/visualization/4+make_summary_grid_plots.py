@@ -10,6 +10,7 @@ from sacred import Experiment
 from sacred.observers import TinyDbObserver
 
 # main function
+from wbfm.utils.projects.finished_project_data import ProjectData
 from wbfm.utils.projects.project_config_classes import ModularProjectConfig
 from wbfm.utils.visualization.plot_traces import make_default_summary_plots_using_config
 
@@ -29,4 +30,5 @@ def main(_config, _run):
     sacred.commands.print_config(_run)
 
     project_cfg = ModularProjectConfig(_config['project_path'])
-    make_default_summary_plots_using_config(project_cfg)
+    project_data = ProjectData.load_final_project_data(project_cfg, allow_hybrid_loading=True)
+    make_default_summary_plots_using_config(project_data)
