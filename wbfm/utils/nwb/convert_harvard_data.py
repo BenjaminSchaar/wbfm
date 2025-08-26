@@ -12,7 +12,7 @@ from dateutil.tz import tzlocal
 from wbfm.utils.nwb.utils_nwb_export import CustomDataChunkIterator
 import dask.array as da
 from pathlib import Path
-import os
+from dask.diagnostics import ProgressBar
 import argparse
 from dask import delayed
 from skimage.segmentation import watershed
@@ -234,7 +234,8 @@ def convert_harvard_to_nwb(input_path,
         seg_dask = segment_from_centroids_using_watershed(points, imvol_dask, DEBUG=DEBUG)
         if eager_segmentation_mode:
             print(f"Eager segmentation mode enabled; computing segmentation in memory; estimated size: {seg_dask.nbytes / (1024**3):.2f} GB")
-            seg_dask = seg_dask.compute()
+            with ProgressBar():
+                seg_dask = seg_dask.compute()
 
         chunk_seg = (1,) + frame_shape[:-1]  # chunk along time only
         print(f"Segmentations will be stored with chunk size {chunk_seg} and size {seg_dask.shape}")
