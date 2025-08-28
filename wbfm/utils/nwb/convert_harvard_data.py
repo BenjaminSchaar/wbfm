@@ -86,14 +86,17 @@ def _iter_segment_video(video, centroids, t, noise_threshold, dtype, compactness
     distance = ndi.distance_transform_edt(video_frame)
     
     # Apply watershed segmentation
-    # try:
-    segmentation = watershed(
-        -distance, 
-        markers, 
-        compactness=compactness,
-        mask=video_frame > noise_threshold,
-        watershed_line=False
-    )
+    try:
+        segmentation = watershed(
+            -distance, 
+            markers, 
+            compactness=compactness,
+            mask=video_frame > noise_threshold,
+            watershed_line=False
+        )
+    except Exception as e:
+        logging.warning(f"Watershed failed for frame {t} with {len(markers)} markers: {e}")
+        return np.zeros_like(video_frame, dtype=dtype)
 
     # # Remap segmentation so each region gets the marker label that seeded it (watershed skips missing indices)  
     # unique_labels = np.unique(segmentation)
@@ -294,7 +297,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     # Start Dask dashboard for visualization
-    client = Client(processes=args.use_processes, n_workers=8)  # Use threads instead of processes
+    client = Client(processes=args.use_processes, n_workers=4)  # Use threads instead of processes
     print(f"Dask dashboard available at: {client.dashboard_link}")
     print("If running on a remote computer, you may need to set up SSH port forwarding to access the dashboard in your browser.")
     print("For example, run the following command on your local machine:")
