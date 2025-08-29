@@ -6,7 +6,7 @@ from pynwb import NWBFile, NWBHDF5IO
 from pynwb.file import Subject
 from pynwb.behavior import Position, SpatialSeries
 from ndx_multichannel_volume import MultiChannelVolumeSeries
-from wbfm.utils.nwb.utils_nwb_export import build_optical_channel_objects
+from wbfm.utils.nwb.utils_nwb_export import build_optical_channel_objects, calc_simple_segmentation_mapping_table, load_per_neuron_position
 from pynwb import TimeSeries
 from datetime import datetime
 from dateutil.tz import tzlocal
@@ -194,12 +194,16 @@ def convert_harvard_to_nwb(input_path,
 
         calcium_imaging_module.add(position_module)
 
+        # Also add the mapping to segmentation ID (segmentation is done below)
+        df_tracking = load_per_neuron_position(position_module)
+
+        dt = calc_simple_segmentation_mapping_table(df_tracking)
+        calcium_imaging_module.add(dt)
+
         # Tranpose channel to be last
         print(f"Detected video with frame shape: {f['0/frame'].shape}")
         frame_shape = f["0/frame"].shape
         frame_shape = frame_shape[1:] + (frame_shape[0], )
-        # frame_shape = (320, 192, 20, 2) #np.transpose(f["0/frame"].shape, (1,2,3,0))  # (2, 320, 192, 20)
-        chunk_shape = (1,) + frame_shape
 
         nn_keys = []
         for key in f.keys():
@@ -242,11 +246,6 @@ def convert_harvard_to_nwb(input_path,
         ))
 
         # Calculate segmentation using simple watershed
-        # with ProgressBar():
-        #     # Regardless, load the image array into memory for segmentation
-        #     imvol_dask = imvol_dask.compute()
-        # print("Image data loaded into memory for segmentation")
-
         seg_dask = segment_from_centroids_using_watershed(points, imvol_dask, DEBUG=DEBUG)
         if eager_segmentation_mode:
             print(f"Eager segmentation mode enabled; computing segmentation in memory; estimated size: {seg_dask.nbytes / (1024**3):.2f} GB")
