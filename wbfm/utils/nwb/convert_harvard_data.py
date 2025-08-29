@@ -1,4 +1,3 @@
-from sched import scheduler
 import h5py
 import numpy as np
 from hdmf.backends.hdf5.h5_utils import H5DataIO
@@ -13,7 +12,6 @@ from dateutil.tz import tzlocal
 from wbfm.utils.nwb.utils_nwb_export import CustomDataChunkIterator
 import dask.array as da
 from pathlib import Path
-from dask.diagnostics import ProgressBar
 import argparse
 from dask import delayed
 from skimage.segmentation import watershed
@@ -21,7 +19,7 @@ import logging
 from scipy import ndimage as ndi
 from tqdm.auto import tqdm
 import time
-from dask.distributed import Client
+from dask.distributed import Client, get_client
 
 def iter_frames(h5_file, n_timepoints, frame_shape):
     for i in range(n_timepoints):
@@ -44,17 +42,19 @@ def segment_from_centroids_using_watershed(centroids, video, compactness=0.5, dt
     if len(video.shape) == 5:
         video = video[..., 0]  # Just take the red channel
     T, X, Y, Z = video.shape
+
+    client = get_client()
+    video_future = client.scatter(video, broadcast=True)
     
     # Stack results
-    # segmented_video = dask_stack_volumes(_iter_segment_video(video, centroids))
-    segmented_video = dask_stack_volumes([da.from_delayed(_iter_segment_video(video[t], centroids[t], t, noise_threshold, dtype, compactness), shape=(X, Y, Z), dtype=dtype) for t in range(T)])
+    segmented_video = dask_stack_volumes([da.from_delayed(_iter_segment_video(video_future, centroids[t], t, noise_threshold, dtype, compactness), shape=(X, Y, Z), dtype=dtype) for t in range(T)])
 
     return segmented_video
 
 @delayed
-def _iter_segment_video(video_frame, frame_centroids, t, noise_threshold, dtype, compactness):
+def _iter_segment_video(video, frame_centroids, t, noise_threshold, dtype, compactness):
     """Segment a single timepoint using watershed"""
-
+    video_frame = video[t]
     X, Y, Z = video_frame.shape
     
     # Create markers as a full-size volume from centroids
