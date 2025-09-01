@@ -104,12 +104,12 @@ def submit_trace_job(trial_name, new_location, dispatcher_script, dependency_job
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run pipeline: copy → track → extract (all via SBATCH)")
-    parser.add_argument("--wbfm-home", required=True, help="Path to the wbfm codebase root directory")
-    parser.add_argument("--finished-path", required=True, help="Path to finished project")
+    parser.add_argument("--wbfm-home", required=False, help="Path to the wbfm codebase root directory", default="/lisc/data/scratch/neurobiology/zimmer/wbfm/code/wbfm")
+    parser.add_argument("--finished-path", required=True, help="Path to finished project, usually an analyzed ground truth project")
     parser.add_argument("--new-location", required=True, help="Base path for new projects")
     parser.add_argument("--models-dir", required=True, help="Folder containing trial subfolders with models OR a single trial directory when --single-trial is used")
     parser.add_argument("--model-fname", default="resnet50.pth", help="Model filename inside each trial folder")
-    parser.add_argument("--use_projection_space", required=True, help="Using projection space or final embedding space")
+    parser.add_argument("--use_projection_space", action="store_true", help="Using projection space or final embedding space")
     parser.add_argument("--single-trial", action="store_true", help="Treat --models-dir as a single trial directory instead of a folder of trials")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode (runs only one trial with verbose output)")
     return parser.parse_args()
