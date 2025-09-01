@@ -23,6 +23,7 @@ SBATCH_TEMPLATES = {
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
 #SBATCH --gres=gpu:1
+#SBATCH --no-requeue
 
 {command}
 """,
@@ -97,8 +98,8 @@ def submit_tracking_job(trial_name, new_location, barlow_model, track_script, de
 def submit_trace_job(trial_name, new_location, dispatcher_script, dependency_jobid, debug=False):
     project_path = f"{new_location}{trial_name}"
     cmd = (
-        f"sbatch {dispatcher_script} "
-        f"-t {project_path} -s 4"
+        f"python {dispatcher_script} "
+        f"with project_path={project_path}"
     )
     return write_and_submit_job(trial_name, "extract_traces", cmd, dependency=dependency_jobid, debug=debug)
 
@@ -121,7 +122,7 @@ def main():
     models_dir = Path(args.models_dir)
     make_project_script = Path(args.wbfm_home) / "scripts/postprocessing/make_project_like.py"
     track_script = Path(args.wbfm_home) / "scripts/pipeline_alternate/3-track_using_barlow.py"
-    dispatcher_script = Path(args.wbfm_home) / "scripts/cluster/single_step_dispatcher.sbatch"
+    dispatcher_script = Path(args.wbfm_home) / "scripts/make_final_traces.py"
     if not os.path.exists(dispatcher_script):
         print(f"Warning: Dispatcher script not found: {dispatcher_script}, aborting")
         return
@@ -154,8 +155,8 @@ def main():
             continue
 
         try:
+            print(f"Starting pipeline for {trial_name}")
             if args.debug:
-                print(f"[DEBUG] Starting pipeline for {trial_name}")
                 print(f"[DEBUG] Model path: {barlow_model_path}")
 
             # Copy project
@@ -184,6 +185,8 @@ def main():
         except subprocess.CalledProcessError as e:
             print(f"Error in {trial_name}: {e}")
             continue
+
+    print(f"All jobs for {len(trial_dirs)} trials submitted successfully.")
 
 
 if __name__ == "__main__":
