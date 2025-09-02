@@ -819,14 +819,23 @@ class ProjectData:
             # Transpose data from TXYZC to TZXY (splitting the channel)
             dat = nwb_obj.acquisition['CalciumImageSeries'].data
             chunks = (1, ) + dat.shape[1:-1] + (1,)
-            obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
-            obj.green_data = da.from_array(dat, chunks=chunks)[..., 1].transpose((0, 3, 1, 2))
-            print(f"Loaded red and green data from NWB file: {obj.red_data.shape}")
+            if dat.shape[-1] == 2:
+                obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+                obj.green_data = da.from_array(dat, chunks=chunks)[..., 1].transpose((0, 3, 1, 2))
+                print(f"Loaded red and green data from NWB file: {obj.red_data.shape}")
 
-            # Load this into the raw data as well; needed for certain steps
-            preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
-            preprocessing_settings._raw_green_data = da.from_array(dat, chunks=chunks)[..., 1].transpose(
-                (0, 3, 1, 2))
+                # Load this into the raw data as well; needed for certain steps
+                preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+                preprocessing_settings._raw_green_data = da.from_array(dat, chunks=chunks)[..., 1].transpose(
+                    (0, 3, 1, 2))
+            elif dat.shape[-1] == 1:
+                obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+                preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+                print("WARNING, only one video channel found; assuming it is red (reference)")
+                print(f"Loaded red data from NWB file: {obj.red_data.shape}")
+            else:
+                raise ValueError(f"Expected 1 or 2 channels in CalciumImageSeries, found {dat.shape[-1]}")
+
         if 'RawCalciumImageSeries' in nwb_obj.acquisition:
             # Load this, but it's not actually part of the main ProjectData class
             # Transpose data from TXYZC to TZXY (splitting the channel)
