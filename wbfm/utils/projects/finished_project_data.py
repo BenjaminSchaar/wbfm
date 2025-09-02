@@ -830,9 +830,12 @@ class ProjectData:
                     (0, 3, 1, 2))
             elif dat.shape[-1] == 1:
                 obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+                obj.green_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+
                 preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
-                print("WARNING, only one video channel found; assuming it is red (reference)")
-                print(f"Loaded red data from NWB file: {obj.red_data.shape}")
+                preprocessing_settings._raw_green_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+                print("WARNING, only one video channel found; setting both channels as this data")
+                print(f"Loaded data from NWB file: {obj.red_data.shape}")
             else:
                 raise ValueError(f"Expected 1 or 2 channels in CalciumImageSeries, found {dat.shape[-1]}")
 
