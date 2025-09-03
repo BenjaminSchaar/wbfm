@@ -5,7 +5,7 @@ from wbfm.utils.segmentation.util.utils_metadata import DetectedNeurons
 from tqdm.auto import tqdm
 
 from wbfm.utils.external.custom_errors import NoMatchesError, NoNeuronsError
-from wbfm.utils.general.preprocessing.utils_preprocessing import PreprocessingSettings
+from barlow_track.utils.utils_tracking import get_target_size_from_args
 from wbfm.utils.neuron_matching.class_frame_pair import FramePair, calc_FramePair_from_Frames, \
     FramePairOptions
 from wbfm.utils.neuron_matching.class_reference_frame import ReferenceFrame, \
@@ -71,12 +71,29 @@ def match_all_adjacent_frames(all_frame_dict, end_volume, frame_pair_options, st
 
 def calculate_frame_objects_full_video(video_data, external_detections, frame_range, video_fname,
                                        z_depth_neuron_encoding, encoder_opt=None, max_workers=8,
-                                       preprocessing_settings=None,
+                                       preprocessing_settings=None, 
+                                       use_barlow_network=False, project_data=None,
                                        logger=None, **kwargs):
     # Get initial volume; settings are same for all
     vol_shape = video_data[0, ...].shape
     all_detected_neurons = DetectedNeurons(external_detections)
     all_detected_neurons.setup()
+
+    if use_barlow_network:
+        # Load the network
+        from barlow_track.utils.barlow import load_barlow_model
+        network_path = encoder_opt.get('network_path', None)
+        gpu, model, args = load_barlow_model(network_path)
+        encoder_opt['gpu'] = gpu
+        encoder_opt['model'] = model
+
+        # Load the neuron-crop generator
+        from barlow_track.utils.barlow import NeuronImageWithGTDataset
+        target_sz = get_target_size_from_args(args)
+        num_frames = project_data.num_frames
+        dataset = NeuronImageWithGTDataset(project_data, num_frames, target_sz, include_untracked=True)
+        encoder_opt['dataset'] = dataset
+
 
     def _build_frame(frame_ind: int) -> ReferenceFrame:
         metadata = {'frame_ind': frame_ind,
@@ -86,7 +103,7 @@ def calculate_frame_objects_full_video(video_data, external_detections, frame_ra
                     'alpha_red': preprocessing_settings.alpha_red,
                     '_raw_data': np.array(video_data[frame_ind, ...])}
         f = build_reference_frame_encoding(metadata=metadata, all_detected_neurons=all_detected_neurons,
-                                           encoder_opt=encoder_opt)
+                                           encoder_opt=encoder_opt, use_barlow_network=use_barlow_network)
         return f
 
     # Build all frames initially, then match

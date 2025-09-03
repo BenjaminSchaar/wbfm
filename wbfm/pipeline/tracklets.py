@@ -108,7 +108,7 @@ def build_frame_objects_using_config(project_config: ModularProjectConfig,
         if len(frame_range) == 0:
             return
     all_new_frames = calculate_frame_objects_full_video(video_data, video_fname=video_fname, frame_range=frame_range,
-                                                        **tracker_params)
+                                                        project_data=project_data, **tracker_params)
     # Optionally include frames that were calculated before (can be empty)
     if not only_calculate_desynced:
         all_frame_dict = all_new_frames

@@ -12,6 +12,10 @@ tracker_params: # OPTIMIZE
 #  num_frames: 100  # Uncomment this if you want a different number from the main project!
   z_depth_neuron_encoding: 3.0
   external_detections: null # Will be synchronized with segmentation
+  use_barlow_network: false
+  encoder_opt:
+    network_path: # Path to the Barlow network model folder, which should accept a 3d image
+    use_projection_space: false
 
 # Parameters for additional methods of matching
 pairwise_matching_params:
