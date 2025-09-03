@@ -222,7 +222,7 @@ class FullVideoNeuronTrackerSuperglue:
                 out = None
         return out
 
-    def match_two_time_points(self, t0: int, t1: int):
+    def match_two_time_points(self, t0: int, t1: int) -> MatchesWithConfidence:
         with torch.no_grad():
             data, is_valid_pair = self.superglue_unpacker.convert_frames_to_superglue_format(t0, t1,
                                                                                              use_gt_matches=False)
@@ -231,7 +231,7 @@ class FullVideoNeuronTrackerSuperglue:
             else:
                 data = self.superglue_unpacker.expand_all_data(data, device=self.model.device)
                 matches_with_conf = self.model.superglue.match_and_output_list(data)
-        return matches_with_conf
+        return MatchesWithConfidence.matches_from_array(matches_with_conf)
 
     def match_two_time_points_return_full_loss(self, t0: int, t1: int):
         """

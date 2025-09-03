@@ -91,8 +91,8 @@ def build_frame_pairs_using_superglue(all_frame_dict, frame_pair_options, projec
         frame_pair = FramePair(options=frame_pair_options, frame0=frame0, frame1=frame1)
         if frame_pair.check_both_frames_valid():
             # Use new method to match
-            matches_with_conf = tracker.match_two_time_points(t, t + 1)
-            frame_pair.feature_matches = matches_with_conf
+            matches_class = tracker.match_two_time_points(t, t + 1)
+            frame_pair.feature_matches = matches_class.matches_with_conf
             # Explicitly load data to prevent frame class using original video path
             dat0, dat1 = project_data.red_data[t], project_data.red_data[t+1]
             frame_pair.load_raw_data(dat0, dat1)
