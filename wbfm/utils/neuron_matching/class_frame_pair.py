@@ -528,6 +528,7 @@ class FramePair:
             print(f"Neuron {m0} not matched using {method_name} method")
 
     def match_using_feature_embedding(self):
+        logging.warning("DEPRECATION WARNING: Using old opencv based feature matching code. Should use FeatureSpaceTemplateMatcher instead")
         # Default method; always call this
         obj = self.options
         opt = dict(matches_to_keep=obj.embedding_matches_to_keep,
