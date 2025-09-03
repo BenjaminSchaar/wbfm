@@ -7,7 +7,6 @@ import scipy.ndimage as ndi
 import cv2
 import numpy as np
 import pandas as pd
-from wbfm.utils.nn_utils.worm_with_classifier import FeatureSpaceTemplateMatcher
 from wbfm.utils.visualization.utils_napari import napari_tracks_from_match_list
 from wbfm.utils.segmentation.util.utils_metadata import DetectedNeurons
 from wbfm.utils.external.utils_cv2 import cast_matches_as_array
@@ -701,7 +700,7 @@ class FramePair:
         return f"FramePair with {len(self.final_matches)}/{self.num_possible_matches} matches \n"
 
 
-def calc_FramePair_from_FeatureSpaceTemplates(template_base: FeatureSpaceTemplateMatcher, template_target: FeatureSpaceTemplateMatcher,
+def calc_FramePair_from_FeatureSpaceTemplates(template_base, template_target,
                                               frame_pair_options: FramePairOptions) -> FramePair:
     """
     Calculates a FramePair from two FeatureSpaceTemplateMatchers. Note that this uses the matcher from the template_base object
