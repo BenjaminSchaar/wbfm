@@ -133,28 +133,6 @@ def save_all_tracklets(df, df_multi_index_format, training_config):
         training_config.pickle_data_in_local_project(df_multi_index_format, out_fname, custom_writer=pd.to_pickle)
 
 
-def _unpack_config_for_tracklets(training_config, segmentation_config):
-    params = training_config.config['pairwise_matching_params']
-    z_threshold = params['z_threshold']
-    min_confidence = params['min_confidence']
-    # matching_method = params['matching_method']
-
-    fname = os.path.join('raw', 'match_dat.pickle')
-    fname = training_config.resolve_relative_path(fname, prepend_subfolder=True)
-    all_frame_pairs = pickle_load_binary(fname)
-
-    fname = os.path.join('raw', 'frame_dat.pickle')
-    fname = training_config.resolve_relative_path(fname, prepend_subfolder=True)
-    all_frame_dict = pickle_load_binary(fname)
-
-    seg_metadata_fname = segmentation_config.resolve_relative_path_from_config('output_metadata')
-    segmentation_metadata = DetectedNeurons(seg_metadata_fname)
-
-    postprocessing_params = training_config.config['postprocessing_params']
-
-    return all_frame_dict, all_frame_pairs, z_threshold, min_confidence, segmentation_metadata, postprocessing_params
-
-
 def _unpack_config_frame2frame_matches(project_data, training_config, DEBUG):
     project_config = project_data.project_config
     # Get options

@@ -18,45 +18,6 @@ from wbfm.utils.projects.project_config_classes import ModularProjectConfig
 ## Full traces function
 ##
 
-
-def build_tracklets_full_video(video_data, video_fname: str, start_volume: int = 0, num_frames: int = 10,
-                               z_depth_neuron_encoding: float = 5.0,
-                               frame_pair_options: FramePairOptions = None,
-                               external_detections: str = None,
-                               project_config: ModularProjectConfig = None,
-                               use_superglue: bool = True,
-                               verbose: int = 0) -> Tuple[Dict[Tuple[int, int], FramePair], Dict[int, ReferenceFrame]]:
-    """
-    Detects and tracks neurons using opencv-based feature matching
-    Note: only compares adjacent frames
-        Thus, if a neuron is lost in a single frame, the track ends
-
-    New: uses and returns my class of features
-    """
-
-    # Build frames, then match them
-    preprocessing_settings = project_config.get_preprocessing_class()
-    end_volume = start_volume + num_frames
-    frame_range = list(range(start_volume, end_volume))
-    all_frame_dict = calculate_frame_objects_full_video(video_data, external_detections, frame_range,
-                                                        video_fname, z_depth_neuron_encoding,
-                                                        preprocessing_settings=preprocessing_settings)
-
-    try:
-        if use_superglue:
-            from wbfm.utils.tracklets.tracklet_pipeline import build_frame_pairs_using_superglue
-            project_data = ProjectData.load_final_project_data_from_config(project_config)
-            project_data.raw_frames = all_frame_dict
-            all_frame_pairs = build_frame_pairs_using_superglue(all_frame_dict, frame_pair_options, project_data)
-        else:
-            all_frame_pairs = match_all_adjacent_frames(all_frame_dict, end_volume, frame_pair_options, start_volume)
-        return all_frame_pairs, all_frame_dict
-    except (ValueError, NoNeuronsError, NoMatchesError) as e:
-        project_config.logger.warning("Error in frame pair matching; quitting gracefully and saving the frame pairs:")
-        print(e)
-        return None, all_frame_dict
-
-
 def match_all_adjacent_frames(all_frame_dict, end_volume, frame_pair_options, start_volume):
     all_frame_pairs = {}
     frame_range = range(start_volume + 1, end_volume)
