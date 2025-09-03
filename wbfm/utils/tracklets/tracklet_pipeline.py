@@ -9,8 +9,8 @@ import numpy as np
 import pandas as pd
 
 from wbfm.utils.neuron_matching.class_frame_pair import FramePair, FramePairOptions
-from wbfm.utils.nn_utils.superglue import SuperGlueUnpacker
-from wbfm.utils.nn_utils.worm_with_classifier import DirectFeatureSpaceTemplateMatcher, FullVideoNeuronTrackerSuperglue
+from wbfm.utils.nn_utils.superglue import SuperGlueUnpackerWithTemplate
+from wbfm.utils.nn_utils.worm_with_classifier import DirectFeatureSpaceTemplateMatcher, SuperGlueFullVideoTrackerWithTemplate
 
 from wbfm.utils.neuron_matching.feature_pipeline import match_all_adjacent_frames
 from wbfm.utils.projects.finished_project_data import ProjectData
@@ -82,8 +82,8 @@ def build_frame_pairs_using_superglue(all_frame_dict, frame_pair_options, projec
     else:
         raise FileNotFoundError(superglue_path)
 
-    superglue_unpacker = SuperGlueUnpacker(project_data=project_data)
-    tracker = FullVideoNeuronTrackerSuperglue(superglue_unpacker=superglue_unpacker, path_to_model=path_to_model)
+    superglue_unpacker = SuperGlueUnpackerWithTemplate(project_data=project_data)
+    tracker = SuperGlueFullVideoTrackerWithTemplate(superglue_unpacker=superglue_unpacker, path_to_model=path_to_model)
     num_frames = project_data.num_frames - 1
     all_frame_pairs = {}
     for t in tqdm(range(num_frames)):

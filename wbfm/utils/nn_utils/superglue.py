@@ -456,7 +456,7 @@ class SuperGlueModel(LightningModule):
 
 
 @dataclass
-class SuperGlueUnpacker:
+class SuperGlueUnpackerWithTemplate:
 
     project_data: ProjectData = None
 
@@ -650,7 +650,7 @@ class SuperGlueFullVolumeNeuronImageFeaturesDatasetFromProject(AbstractNeuronIma
         super().__init__(project_data)
         self.num_to_calculate = num_to_calculate
 
-        self.unpacker = SuperGlueUnpacker(project_data=project_data)
+        self.unpacker = SuperGlueUnpackerWithTemplate(project_data=project_data)
 
         self._calculate_time_points(num_to_calculate, project_data, use_adjacent_time_points)
 

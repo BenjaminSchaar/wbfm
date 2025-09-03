@@ -3,7 +3,7 @@ import sacred
 from sacred import Experiment
 from sacred import SETTINGS
 from wbfm.utils.external.monkeypatch_json import using_monkeypatch
-from wbfm.pipeline.tracking import track_using_superglue_using_config, track_using_embedding_using_config
+from wbfm.pipeline.tracking import track_using_using_config
 from wbfm.utils.projects.project_config_classes import ModularProjectConfig
 import cgitb
 
@@ -42,4 +42,4 @@ def main(_config, _run):
     project_dir = _config['project_dir']
 
     with safe_cd(project_dir):
-        track_using_superglue_using_config(project_cfg, _config['DEBUG'])
+        track_using_using_config(project_cfg, use_superglue_tracker=True, _config['DEBUG'])

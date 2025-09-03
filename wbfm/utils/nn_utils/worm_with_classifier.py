@@ -11,7 +11,7 @@ from tqdm.auto import tqdm
 from wbfm.utils.neuron_matching.class_reference_frame import ReferenceFrame
 from wbfm.utils.neuron_matching.matches_class import MatchesWithConfidence
 from wbfm.utils.nn_utils.model_image_classifier import NeuronEmbeddingModel
-from wbfm.utils.nn_utils.superglue import SuperGlueModel, SuperGlueUnpacker
+from wbfm.utils.nn_utils.superglue import SuperGlueModel, SuperGlueUnpackerWithTemplate
 from wbfm.utils.projects.finished_project_data import ProjectData, template_matches_to_dataframe
 from wbfm.utils.general.hardcoded_paths import load_hardcoded_neural_network_paths
 
@@ -150,14 +150,22 @@ class ReembeddedFeatureSpaceTemplateMatcher(FeatureSpaceTemplateMatcher):
         return f"Worm Tracker based on network: {self.path_to_model}"
 
 
+@dataclass
+class FullVideoTrackerWithTemplate:
+    """
+    Simpler reimplementation of FullVideoNeuronTrackerSuperglue that uses the FeatureSpaceTemplateMatcher class instead of a direct neural network
+    """
+
+    t_template: int
+
+    time_dict_of_matcher_classes: dict[int, FeatureSpaceTemplateMatcher]
+
+    def match_target_frame(self, t_target):
+        pass
+
 
 @dataclass
-class _FullVideoNeuronTrackerSuperglue:
-    pass
-
-
-@dataclass
-class FullVideoNeuronTrackerSuperglue:
+class SuperGlueFullVideoTrackerWithTemplate:
     """
     Tracks neurons using a superglue network and pre-calculated Frame objects
 
@@ -166,7 +174,7 @@ class FullVideoNeuronTrackerSuperglue:
     Designed to be used for non-adjacent frame matching
     """
     model: SuperGlueModel = None
-    superglue_unpacker: SuperGlueUnpacker = None  # Note: contains the reference frame
+    superglue_unpacker: SuperGlueUnpackerWithTemplate = None  # Note: contains the reference frame
 
     path_to_model: str = None
 
@@ -253,7 +261,7 @@ class FullVideoNeuronTrackerSuperglue:
         return f"Worm Tracker based on superglue network"
 
 
-def track_using_template(all_frames, num_frames, project_data, tracker: FullVideoNeuronTrackerSuperglue):
+def track_using_template(all_frames, num_frames, project_data, tracker: SuperGlueFullVideoTrackerWithTemplate):
     """
     Tracks all the frames in all_frames using the tracker class.
 
