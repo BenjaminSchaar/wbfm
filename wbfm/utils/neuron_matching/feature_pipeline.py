@@ -1,12 +1,10 @@
 import concurrent.futures
-from typing import Tuple, Dict
 import numpy as np
 from wbfm.utils.segmentation.util.utils_metadata import DetectedNeurons
 from tqdm.auto import tqdm
 
-from wbfm.utils.external.custom_errors import NoMatchesError, NoNeuronsError
 from barlow_track.utils.utils_tracking import get_target_size_from_args
-from wbfm.utils.neuron_matching.class_frame_pair import FramePair, calc_FramePair_from_Frames, \
+from wbfm.utils.neuron_matching.class_frame_pair import FramePair, calc_FramePair_from_FeatureSpaceTemplates, calc_FramePair_from_Frames, \
     FramePairOptions
 from wbfm.utils.neuron_matching.class_reference_frame import ReferenceFrame, \
     build_reference_frame_encoding
@@ -18,14 +16,16 @@ from wbfm.utils.projects.project_config_classes import ModularProjectConfig
 ## Full traces function
 ##
 
-def match_all_adjacent_frames(all_frame_dict, end_volume, frame_pair_options, start_volume):
+def match_all_adjacent_frames(all_frame_dict, start_volume, end_volume, frame_pair_options: FramePairOptions, use_tracker_class=False):
     all_frame_pairs = {}
     frame_range = range(start_volume + 1, end_volume)
     for i_frame in tqdm(frame_range):
         key = (i_frame - 1, i_frame)
         frame0, frame1 = all_frame_dict[key[0]], all_frame_dict[key[1]]
-        this_pair = calc_FramePair_from_Frames(frame0, frame1, frame_pair_options=frame_pair_options)
-
+        if use_tracker_class:
+            this_pair = calc_FramePair_from_FeatureSpaceTemplates(frame0, frame1, frame_pair_options=frame_pair_options)
+        else:
+            this_pair = calc_FramePair_from_Frames(frame0, frame1, frame_pair_options=frame_pair_options)
         all_frame_pairs[key] = this_pair
     return all_frame_pairs
 

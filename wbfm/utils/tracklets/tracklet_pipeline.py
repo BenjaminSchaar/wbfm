@@ -10,7 +10,7 @@ import pandas as pd
 
 from wbfm.utils.neuron_matching.class_frame_pair import FramePair, FramePairOptions
 from wbfm.utils.nn_utils.superglue import SuperGlueUnpacker
-from wbfm.utils.nn_utils.worm_with_classifier import WormWithSuperGlueClassifier
+from wbfm.utils.nn_utils.worm_with_classifier import FullVideoNeuronTrackerSuperglue
 from wbfm.utils.segmentation.util.utils_metadata import DetectedNeurons
 
 from wbfm.utils.neuron_matching.feature_pipeline import match_all_adjacent_frames
@@ -63,7 +63,7 @@ def match_all_adjacent_frames_using_config(project_config: ModularProjectConfig,
     if frame_pair_options.use_superglue:
         all_frame_pairs = build_frame_pairs_using_superglue(all_frame_dict, frame_pair_options, project_data)
     else:
-        all_frame_pairs = match_all_adjacent_frames(all_frame_dict, end_volume, frame_pair_options, start_volume)
+        all_frame_pairs = match_all_adjacent_frames(all_frame_dict, start_volume, end_volume, frame_pair_options)
 
     with safe_cd(project_config.project_dir):
         _save_matches_and_frames(all_frame_dict, all_frame_pairs, training_config)
@@ -83,7 +83,7 @@ def build_frame_pairs_using_superglue(all_frame_dict, frame_pair_options, projec
         raise FileNotFoundError(superglue_path)
 
     superglue_unpacker = SuperGlueUnpacker(project_data=project_data)
-    tracker = WormWithSuperGlueClassifier(superglue_unpacker=superglue_unpacker, path_to_model=path_to_model)
+    tracker = FullVideoNeuronTrackerSuperglue(superglue_unpacker=superglue_unpacker, path_to_model=path_to_model)
     num_frames = project_data.num_frames - 1
     all_frame_pairs = {}
     for t in tqdm(range(num_frames)):

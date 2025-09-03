@@ -7,6 +7,7 @@ import scipy.ndimage as ndi
 import cv2
 import numpy as np
 import pandas as pd
+from wbfm.utils.nn_utils.worm_with_classifier import FeatureSpaceTemplateMatcher
 from wbfm.utils.visualization.utils_napari import napari_tracks_from_match_list
 from wbfm.utils.segmentation.util.utils_metadata import DetectedNeurons
 from wbfm.utils.external.utils_cv2 import cast_matches_as_array
@@ -538,7 +539,7 @@ class FramePair:
         """
         Requires the frame objects to have been correctly initialized, i.e. their neurons need a feature embedding
 
-        Uses direct brute force matching to match the neurons given these embeddings, then postprocesses using GMS to
+        Uses direct brute force matching to match the neurons given these embeddings, then optionally postprocesses using GMS to
         make sure they reflect a locally consistent motion field
         """
         frame0, frame1 = self.frame0, self.frame1
@@ -697,6 +698,36 @@ class FramePair:
 
     def __repr__(self):
         return f"FramePair with {len(self.final_matches)}/{self.num_possible_matches} matches \n"
+
+
+def calc_FramePair_from_FeatureSpaceTemplates(template_base: FeatureSpaceTemplateMatcher, template_target: FeatureSpaceTemplateMatcher,
+                                              frame_pair_options: FramePairOptions) -> FramePair:
+    """
+    Calculates a FramePair from two FeatureSpaceTemplateMatchers. Note that this uses the matcher from the template_base object
+
+    See also calc_FramePair_from_Frames
+
+    Parameters
+    ----------
+    template0
+    template1
+
+    Returns
+    -------
+    FramePair
+    """
+
+    # Get the matched frames from the templates
+    matched_frames = template_base.match_target_frame(template_target.template_frame)
+
+    # Create a FramePair from the matched frames
+    frame_pair = FramePair(frame0=template_base.template_frame, frame1=template_target.template_frame, options=frame_pair_options)
+    frame_pair.final_matches = matched_frames
+
+    # Add additional candidates; the class checks if they are used
+    frame_pair.match_using_all_methods()
+
+    return frame_pair
 
 
 def calc_FramePair_from_Frames(frame0: ReferenceFrame, frame1: ReferenceFrame, frame_pair_options: FramePairOptions,

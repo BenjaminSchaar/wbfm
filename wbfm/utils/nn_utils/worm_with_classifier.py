@@ -19,7 +19,7 @@ from wbfm.utils.general.hardcoded_paths import load_hardcoded_neural_network_pat
 HPARAMS = dict(num_classes=127)
 
 @dataclass
-class FeatureSpaceNeuronTracker(ABC):
+class FeatureSpaceTemplateMatcher(ABC):
     """Abstract class for tracking neurons via matching in some feature space based on a template"""
 
     template_frame: ReferenceFrame
@@ -45,8 +45,7 @@ class FeatureSpaceNeuronTracker(ABC):
 
         return matches_with_conf
 
-
-class DirectFeatureSpaceNeuronTracker(FeatureSpaceNeuronTracker):
+class DirectFeatureSpaceTemplateMatcher(FeatureSpaceTemplateMatcher):
     """Direct matching in the feature space without re-embedding or other postprocessing"""
     embedding_template: torch.tensor = None
 
@@ -73,7 +72,7 @@ class DirectFeatureSpaceNeuronTracker(FeatureSpaceNeuronTracker):
         return matches_with_conf
 
 
-class ReembeddedFeatureSpaceNeuronTracker(FeatureSpaceNeuronTracker):
+class ReembeddedFeatureSpaceTemplateMatcher(FeatureSpaceTemplateMatcher):
     """
     Tracks neurons using a feature-space embedding and pre-calculated Frame objects
 
@@ -150,9 +149,21 @@ class ReembeddedFeatureSpaceNeuronTracker(FeatureSpaceNeuronTracker):
         return f"Worm Tracker based on network: {self.path_to_model}"
 
 
+
 @dataclass
-class WormWithSuperGlueClassifier:
-    """Tracks neurons using a superglue network and pre-calculated Frame objects"""
+class _FullVideoNeuronTrackerSuperglue:
+    pass
+
+
+@dataclass
+class FullVideoNeuronTrackerSuperglue:
+    """
+    Tracks neurons using a superglue network and pre-calculated Frame objects
+
+    Contains information (Frame objects) for the entire video
+
+    Designed to be used for non-adjacent frame matching
+    """
     model: SuperGlueModel = None
     superglue_unpacker: SuperGlueUnpacker = None  # Note: contains the reference frame
 
@@ -173,9 +184,6 @@ class WormWithSuperGlueClassifier:
         if self.model is None:
             self.model = SuperGlueModel.load_from_checkpoint(checkpoint_path=self.path_to_model)
         self.model.eval()
-
-    def move_data_to_device(self, data_dict):
-        [v.to(self.model.device) for v in data_dict.values()]
 
     def match_target_frame(self, target_frame: ReferenceFrame):
 
@@ -244,7 +252,7 @@ class WormWithSuperGlueClassifier:
         return f"Worm Tracker based on superglue network"
 
 
-def track_using_template(all_frames, num_frames, project_data, tracker):
+def track_using_template(all_frames, num_frames, project_data, tracker: FullVideoNeuronTrackerSuperglue):
     """
     Tracks all the frames in all_frames using the tracker class.
 
@@ -283,34 +291,3 @@ def _unpack_project_for_global_tracking(DEBUG, project_cfg):
         num_frames = 3
     all_frames = project_data.raw_frames
     return all_frames, num_frames, num_random_templates, project_data, t_template, tracking_cfg, use_multiple_templates
-
-
-def load_cluster_tracker_from_config(project_config, svd_components=50, ):
-    """Alternate method for tracking via pure clustering on the feature space"""
-    project_data = ProjectData.load_final_project_data_from_config(project_config, to_load_frames=True)
-
-    # Use old tracker just as a feature-space embedder
-    frames_old = project_data.raw_frames
-    unpacker = SuperGlueUnpacker(project_data, 10)
-    tracker_old = WormWithSuperGlueClassifier(superglue_unpacker=unpacker)
-
-    print("Embedding all neurons in feature space...")
-    X = []
-    linear_ind_to_local = []
-    offset = 0
-    for i in tqdm(range(project_data.num_frames)):
-        this_frame = frames_old[i]
-        this_frame_embedding = tracker_old.embed_target_frame(this_frame)
-        this_x = this_frame_embedding.squeeze().cpu().numpy().T
-        X.append(this_x)
-
-        linear_ind_to_local.append(offset + np.arange(this_x.shape[0]))
-        offset += this_x.shape[0]
-
-    X = np.vstack(X).astype(float)
-    alg = TruncatedSVD(n_components=svd_components)
-    X_svd = alg.fit_transform(X)
-
-    from barlow_track.utils.track_using_clusters import WormTsneTracker
-    obj = WormTsneTracker(X_svd, linear_ind_to_local, svd_components=svd_components)
-    return obj

@@ -15,7 +15,7 @@ from wbfm.utils.neuron_matching.utils_candidate_matches import rename_columns_us
     combine_dataframes_using_bipartite_matching
 from wbfm.utils.nn_utils.superglue import SuperGlueUnpacker
 from wbfm.utils.nn_utils.worm_with_classifier import _unpack_project_for_global_tracking, \
-    WormWithSuperGlueClassifier, track_using_template, ReembeddedFeatureSpaceNeuronTracker
+    FullVideoNeuronTrackerSuperglue, track_using_template, ReembeddedFeatureSpaceTemplateMatcher
 from wbfm.utils.external.random_templates import generate_random_valid_template_frames
 from wbfm.utils.projects.finished_project_data import ProjectData
 from wbfm.utils.projects.project_config_classes import ModularProjectConfig
@@ -29,7 +29,7 @@ def track_using_superglue_using_config(project_cfg, DEBUG):
     all_frames, num_frames, num_random_templates, project_data, t_template, tracking_cfg, use_multiple_templates = _unpack_project_for_global_tracking(
         DEBUG, project_cfg)
     superglue_unpacker = SuperGlueUnpacker(project_data=project_data, t_template=t_template)
-    tracker = WormWithSuperGlueClassifier(superglue_unpacker=superglue_unpacker)
+    tracker = FullVideoNeuronTrackerSuperglue(superglue_unpacker=superglue_unpacker)
     model = tracker.model  # Save for later initialization
     min_neurons_for_template = 50
     all_dfs_raw = []
@@ -48,7 +48,7 @@ def track_using_superglue_using_config(project_cfg, DEBUG):
         all_dfs_raw = [df_base]
         for i, t in enumerate(tqdm(all_templates[1:])):
             superglue_unpacker = SuperGlueUnpacker(project_data=project_data, t_template=t)
-            tracker = WormWithSuperGlueClassifier(superglue_unpacker=superglue_unpacker, model=model)
+            tracker = FullVideoNeuronTrackerSuperglue(superglue_unpacker=superglue_unpacker, model=model)
             df = track_using_template(all_frames, num_frames, project_data, tracker)
             df_name_aligned, _, _, _ = rename_columns_using_matching(df_base, df, try_to_fix_inf=True)
             all_dfs_names_aligned.append(df_name_aligned)
@@ -94,7 +94,7 @@ def match_two_projects_using_superglue_using_config(project_cfg_base: ModularPro
         DEBUG, project_cfg_target)
 
     superglue_unpacker = SuperGlueUnpacker(project_data=project_data_base, t_template=t_template)
-    tracker_base = WormWithSuperGlueClassifier(superglue_unpacker=superglue_unpacker)
+    tracker_base = FullVideoNeuronTrackerSuperglue(superglue_unpacker=superglue_unpacker)
     model = tracker_base.model  # Save for later initialization
     min_neurons_for_template = 50
     if only_match_same_time_points:
@@ -115,7 +115,7 @@ def match_two_projects_using_superglue_using_config(project_cfg_base: ModularPro
         all_dfs_raw = [df_base]
         for i, t in enumerate(tqdm(all_templates[1:])):
             superglue_unpacker = SuperGlueUnpacker(project_data=project_data_base, t_template=t)
-            tracker = WormWithSuperGlueClassifier(superglue_unpacker=superglue_unpacker, model=model)
+            tracker = FullVideoNeuronTrackerSuperglue(superglue_unpacker=superglue_unpacker, model=model)
             if only_match_same_time_points:
                 _all_frames_target = all_frames_target[t]
             else:
@@ -192,18 +192,18 @@ def track_using_embedding_using_config(project_cfg, DEBUG):
 
     all_dfs = []
     if not use_multiple_templates:
-        tracker = ReembeddedFeatureSpaceNeuronTracker(template_frame=all_frames[t_template])
+        tracker = ReembeddedFeatureSpaceTemplateMatcher(template_frame=all_frames[t_template])
         df_final = track_using_template(all_frames, num_frames, project_data, tracker)
     else:
         all_templates = generate_random_valid_template_frames(all_frames, min_neurons_for_template,
                                                               num_frames, num_random_templates, t_template)
         # All subsequent dataframes will have their names mapped to this
         t = all_templates[0]
-        tracker = ReembeddedFeatureSpaceNeuronTracker(template_frame=all_frames[t])
+        tracker = ReembeddedFeatureSpaceTemplateMatcher(template_frame=all_frames[t])
         df_base = track_using_template(all_frames, num_frames, project_data, tracker)
         all_dfs = [df_base]
         for i, t in enumerate(tqdm(all_templates[1:])):
-            tracker = ReembeddedFeatureSpaceNeuronTracker(template_frame=all_frames[t])
+            tracker = ReembeddedFeatureSpaceTemplateMatcher(template_frame=all_frames[t])
             df = track_using_template(all_frames, num_frames, project_data, tracker)
             df, _, _, _ = rename_columns_using_matching(df_base, df)
             all_dfs.append(df)
