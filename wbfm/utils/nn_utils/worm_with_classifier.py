@@ -2,6 +2,7 @@ import os.path
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from re import Match
+from typing import Dict
 
 import numpy as np
 import torch
@@ -156,8 +157,8 @@ class FullVideoTrackerWithTemplate:
     """
     Simpler reimplementation of FullVideoNeuronTrackerSuperglue that uses the FeatureSpaceTemplateMatcher class instead of a direct neural network
     """
-
     t_template: int
+    time_dict_of_matcher_classes: Dict[int, FeatureSpaceTemplateMatcher]
     time_dict_of_matcher_classes: dict[int, FeatureSpaceTemplateMatcher]
 
     def match_target_frame(self, t_target) -> MatchesWithConfidence:
