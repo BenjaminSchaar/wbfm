@@ -304,7 +304,6 @@ def track_using_template(all_frames, num_frames, project_data, tracker: SuperGlu
     for t in tqdm(range(num_frames), leave=False):
         # Note: if there are no neurons, this list should be empty
         matches_with_conf = tracker.match_target_frame(all_frames[t])
-
         all_matches.append(matches_with_conf)
     df = template_matches_to_dataframe(project_data, all_matches)
     return df

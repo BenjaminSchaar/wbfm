@@ -211,18 +211,18 @@ def track_using_embedding_using_config(project_cfg, DEBUG):
 
     all_dfs = []
     if not use_multiple_templates:
-        tracker = ReembeddedFeatureSpaceTemplateMatcher(template_frame=all_frames[t_template])
+        tracker = DirectFeatureSpaceTemplateMatcher(template_frame=all_frames[t_template])
         df_final = track_using_template(all_frames, num_frames, project_data, tracker)
     else:
         all_templates = generate_random_valid_template_frames(all_frames, min_neurons_for_template,
                                                               num_frames, num_random_templates, t_template)
         # All subsequent dataframes will have their names mapped to this
         t = all_templates[0]
-        tracker = ReembeddedFeatureSpaceTemplateMatcher(template_frame=all_frames[t])
+        tracker = DirectFeatureSpaceTemplateMatcher(template_frame=all_frames[t])
         df_base = track_using_template(all_frames, num_frames, project_data, tracker)
         all_dfs = [df_base]
         for i, t in enumerate(tqdm(all_templates[1:])):
-            tracker = ReembeddedFeatureSpaceTemplateMatcher(template_frame=all_frames[t])
+            tracker = DirectFeatureSpaceTemplateMatcher(template_frame=all_frames[t])
             df = track_using_template(all_frames, num_frames, project_data, tracker)
             df, _, _, _ = rename_columns_using_matching(df_base, df)
             all_dfs.append(df)
