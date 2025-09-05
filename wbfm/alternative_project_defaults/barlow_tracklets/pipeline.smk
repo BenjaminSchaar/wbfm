@@ -191,15 +191,15 @@ rule tracking:
         metadata=os.path.join(project_dir, "1-segmentation/metadata.pickle"),
         frames=os.path.join(project_dir, "2-training_data/raw/frame_dat.pickle"),
     output:
-        tracks_global=os.path.join(project_dir, "3-tracking/postprocessing/df_tracks_postprocessed.h5"),
+        tracks_global=os.path.join(project_dir, "3-tracking/postprocessing/df_tracks_embedding.h5"),
     threads: 48
     run:
-        _run_helper("3a-track_using_superglue", str(input.cfg))
+        _run_helper("pipeline_alternate.3a-track_using_embedding", str(input.cfg))
 
 rule combine_tracking_and_tracklets:
     input:
         cfg=project_cfg_fname,
-        tracks_global=os.path.join(project_dir, "3-tracking/postprocessing/df_tracks_postprocessed.h5"),
+        tracks_global=os.path.join(project_dir, "3-tracking/postprocessing/df_tracks_embedding.h5"),
         tracklets=os.path.join(project_dir, "2-training_data/all_tracklets.pickle"),
     output:
         tracks_combined=os.path.join(project_dir, "3-tracking/postprocessing/combined_3d_tracks.h5"),
