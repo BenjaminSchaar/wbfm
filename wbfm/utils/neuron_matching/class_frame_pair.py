@@ -707,7 +707,7 @@ class FramePair:
 def calc_FramePair_from_FeatureSpaceTemplates(template_base, template_target,
                                               frame_pair_options: FramePairOptions = None) -> FramePair:
     """
-    Calculates a FramePair from two FeatureSpaceTemplateMatchers. Note that this uses the matcher from the template_base object
+    Calculates a FramePair from two FeatureSpaceTemplateMatcher objects. Note that this uses the matcher from the template_base object
 
     See also calc_FramePair_from_Frames
 
@@ -722,12 +722,15 @@ def calc_FramePair_from_FeatureSpaceTemplates(template_base, template_target,
     """
     if frame_pair_options is None:
         frame_pair_options = FramePairOptions()
+    frame_pair = FramePair(frame0=template_base.template_frame, frame1=template_target.template_frame, options=frame_pair_options)
+    if not frame_pair.check_both_frames_valid():
+        # In particular, no neurons detected in at least one frame
+        return frame_pair
 
     # Get the matched frames from the templates
     matches_class = template_base.match_target_frame(template_target.template_frame)
 
     # Create a FramePair from the matched frames
-    frame_pair = FramePair(frame0=template_base.template_frame, frame1=template_target.template_frame, options=frame_pair_options)
     frame_pair.final_matches = matches_class.array_matches_with_conf.tolist()
 
     # Add additional candidates; the class checks if they are used

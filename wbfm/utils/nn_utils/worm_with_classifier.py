@@ -35,6 +35,14 @@ class FeatureSpaceTemplateMatcher(ABC):
     def match_target_frame(self, target_frame: ReferenceFrame) -> MatchesWithConfidence:
         pass
 
+    def check_target_frame_can_be_matched(self, target_frame: ReferenceFrame) -> bool:
+        # See FramePair.check_both_frames_valid
+        num_possible_matches = num_possible_matches_between_two_frames(self.template_frame, target_frame)
+        is_valid = True
+        if num_possible_matches <= 1 or np.isnan(num_possible_matches):
+            is_valid = False
+        return is_valid
+
     def _match_using_linear_sum_assignment(self, query_embedding: torch.Tensor) -> MatchesWithConfidence:
 
         distances = torch.cdist(self.embedding_template, query_embedding, p=self.cdist_p)
@@ -68,6 +76,8 @@ class DirectFeatureSpaceTemplateMatcher(FeatureSpaceTemplateMatcher):
         Matches with confidence (n_matches x 3)
 
         """
+        if not self.check_target_frame_can_be_matched(target_frame):
+            raise NoMatchesError("Target frame cannot be matched")
 
         with torch.no_grad():
             query_embedding = torch.from_numpy(target_frame.all_features)
@@ -137,6 +147,8 @@ class ReembeddedFeatureSpaceTemplateMatcher(FeatureSpaceTemplateMatcher):
         Matches with confidence (n_matches x 3)
 
         """
+        if not self.check_target_frame_can_be_matched(target_frame):
+            raise NoMatchesError("Target frame cannot be matched")
 
         with torch.no_grad():
             query_embedding = self.embed_target_frame(target_frame)
