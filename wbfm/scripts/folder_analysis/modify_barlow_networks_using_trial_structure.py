@@ -17,8 +17,7 @@ def extract_sweep_and_trial(path):
     Example path:
         ~/zimmer/fieseler/barlow_track_paper/analyzed_projects/zimmer/augmentation_sweep/ZIM2165_Gcamp7b_worm1-2022_11_28_updated_formattrial_0/snakemake/snakemake_config.yaml
     Format:
-        /path/to/LAB/SWEEPTYPE_sweep/PROJECTNAMEtrial_N/snakemake_config.yaml
-
+        /path/to/LAB/SWEEPTYPE_sweep/PROJECTNAMEtrial_N/snakemake/snakemake_config.yaml
 
     """
     parts = path.split(os.sep)
@@ -34,7 +33,7 @@ def extract_sweep_and_trial(path):
             project_parts = project_dir.split('trial_')
             if len(project_parts) < 2:
                 raise ValueError("PROJECTNAMEtrial_N format not found in path")
-            trial_name = 'trial_'.join(project_parts[:-1])
+            trial_name = 'trial_' + project_parts[-1]
 
         if not sweep_type or not trial_name or not lab_type:
             raise ValueError("Could not extract SWEEPTYPE or trial")
