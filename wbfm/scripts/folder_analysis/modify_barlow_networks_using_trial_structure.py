@@ -1,5 +1,6 @@
 import argparse
 from ast import arg
+import logging
 import os
 import re
 from ruamel.yaml import YAML
@@ -48,7 +49,9 @@ def extract_sweep_and_trial(path):
 def update_config_file(config_path, networks_parent_dir, dry_run=False):
     sweep_type, trial_name, lab_type = extract_sweep_and_trial(config_path)
     model_path = f"{networks_parent_dir}/{sweep_type}_{lab_type}/{trial_name}/resnet50.pth"
-    assert os.path.exists(model_path), f"Model not found at {model_path}."
+    if not os.path.exists(model_path):
+        logging.warning(f"Model not found at {model_path}; skipping {config_path}. Setting barlow_model_path to null (analysis should fail later)")
+        model_path = None
 
     try:
         with open(config_path, 'r') as f:
