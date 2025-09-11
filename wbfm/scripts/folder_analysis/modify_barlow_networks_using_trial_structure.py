@@ -50,6 +50,10 @@ def update_config_file(config_path, networks_parent_dir, dry_run=False):
     sweep_type, trial_name, lab_type = extract_sweep_and_trial(config_path)
     model_dir = f"{networks_parent_dir}/{sweep_type}_{lab_type}"
     if not os.path.exists(model_dir):
+        # Some have 'sweep' in the folder name
+        model_dir = f"{networks_parent_dir}/{sweep_type}_sweep_{lab_type}"
+
+    if not os.path.exists(model_dir):
         raise ValueError(f"Model directory '{model_dir}' does not exist")
     else:
         model_path = os.path.join(model_dir, trial_name, 'resnet50.pth')
