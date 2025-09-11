@@ -48,7 +48,12 @@ def extract_sweep_and_trial(path):
 
 def update_config_file(config_path, networks_parent_dir, dry_run=False):
     sweep_type, trial_name, lab_type = extract_sweep_and_trial(config_path)
-    model_path = f"{networks_parent_dir}/{sweep_type}_{lab_type}/{trial_name}/resnet50.pth"
+    model_dir = f"{networks_parent_dir}/{sweep_type}_{lab_type}"
+    if not os.path.exists(model_dir):
+        raise ValueError(f"Model directory '{model_dir}' does not exist")
+    else:
+        model_path = os.path.join(model_dir, trial_name, 'resnet50.pth')
+        
     if not os.path.exists(model_path):
         print("="*20)
         logging.warning(f"Model not found at {model_path}; skipping {config_path}. Setting barlow_model_path to null (analysis should fail later)")
