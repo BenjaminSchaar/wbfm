@@ -46,9 +46,9 @@ def extract_sweep_and_trial(path):
         return None, None
 
 
-def update_config_file(config_path, dry_run=False):
+def update_config_file(config_path, networks_parent_dir, dry_run=False):
     sweep_type, trial_name, lab_type = extract_sweep_and_trial(config_path)
-    model_path = f"{sweep_type}_{lab_type}/{trial_name}/resnet50.pth"
+    model_path = f"{networks_parent_dir}/{sweep_type}_{lab_type}/{trial_name}/resnet50.pth"
     assert os.path.exists(model_path), f"Model not found at {model_path}."
 
     try:
@@ -84,7 +84,8 @@ def find_and_update_configs(root_dir, dry_run=False):
 if __name__ == "__main__":
     args = argparse.ArgumentParser(description="Update snakemake_config.yaml files with Barlow network settings.")
     args.add_argument('--project_dir', type=str, help="Root directory to start searching from.")
+    args.add_argument('--networks_parent_dir', type=str, help="Parent directory where trained Barlow networks are stored.")
     args.add_argument('--dry_run', action='store_true', help="If set, will only print changes without writing to files.")
     args = args.parse_args()
 
-    find_and_update_configs(args.project_dir, dry_run=args.dry_run)
+    find_and_update_configs(args.project_dir, args.networks_parent_dir, dry_run=args.dry_run)
