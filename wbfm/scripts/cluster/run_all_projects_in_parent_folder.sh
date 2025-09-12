@@ -44,15 +44,22 @@ loop_through_and_analyze_folder() {
     folder_of_projects=$1
     recursion_level=$2
 
+    if [ $recursion_level -eq 0 ]; then
+        echo "Checking top level folder: $f"
+    fi
+
     # Shared setup for each command
     conda_setup_cmd="conda activate /lisc/scratch/neurobiology/zimmer/.conda/envs/wbfm/"
 
     # Loop through the parent folder, then try to get the config file within each of these parent folders
     for f in "$folder_of_projects"/*; do
         if [ -d "$f" ] && [ ! -L "$f" ]; then
-            if [ $recursion_level -eq 0 ]; then
-                echo "Checking top level folder: $f"
-            fi
+            # Echo the folder name with indentation based on recursion level
+            indent=""
+            for ((i=0; i<recursion_level; i++)); do
+                indent="$indent  "
+            done
+            echo "${indent}Analyzing folder: $f (recursion level: $recursion_level)"
 
             # Check to make sure the project has a project_config.yaml file, i.e. is a real project
             # Order files first, then directories
