@@ -1044,7 +1044,9 @@ def make_project_name_like(project_path: str, target_directory: str, target_suff
 def make_project_like(project_path: str, target_directory: str,
                       steps_to_keep: list = None,
                       target_suffix: str = None,
-                      new_project_name: str = None, verbose=1):
+                      new_project_name: str = None, 
+                      config_files_to_update: list = None,
+                      verbose=1):
     """
     Copy all config files from a project, i.e. only the files that would exist in a new project
 

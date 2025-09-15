@@ -113,6 +113,7 @@ def parse_args():
     parser.add_argument("--model-fname", default="resnet50.pth", help="Model filename inside each trial folder")
     parser.add_argument("--use_projection_space", action="store_true", help="Using projection space or final embedding space")
     parser.add_argument("--single-trial", action="store_true", help="Treat --models-dir as a single trial directory instead of a folder of trials")
+    parser.add_argument("--use_tracklets", action="store_true", help="Use tracklets instead of clustering to build final tracks")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode (runs only one trial with verbose output)")
     return parser.parse_args()
 
