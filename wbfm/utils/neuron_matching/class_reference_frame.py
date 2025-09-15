@@ -2,7 +2,6 @@ import logging
 from dataclasses import dataclass
 import cv2
 import numpy as np
-import torch
 from tqdm.auto import tqdm
 from wbfm.utils.external.utils_cv2 import get_keypoints_from_3dseg
 from wbfm.utils.external.utils_zarr import zarr_reader_folder_or_zipstore
@@ -250,6 +249,7 @@ class ReferenceFrame:
 
         Note: network_path is needed as an arg for compatibility with the yaml file
         """
+        import torch
         batch, ids = dataset[self.frame_ind]
         batch = batch.to(gpu)
         all_embeddings = []
