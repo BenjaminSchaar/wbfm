@@ -58,6 +58,7 @@ class FramePairOptions:
     z_to_xy_ratio: float = None  # Deprecated; will be removed after Ulises projects
     apply_tanh_to_confidence: bool = True
 
+    # These are mutually exclusive
     use_superglue: bool = True
 
     # Physical unit conversion; required for leifer network
@@ -93,8 +94,9 @@ class FramePairOptions:
         frame_pair_options = FramePairOptions(**pairwise_matches_params)
 
         # Check that the network used to create the embeddings is consistent
-        if training_config.config['tracker_params']['use_barlow_network']:
-            assert not frame_pair_options.use_superglue, "Cannot set use_superglue=True if the embeddings were created using barlow network"
+        if training_config.config['tracker_params']['use_barlow_network'] and frame_pair_options.use_superglue:
+            frame_pair_options.use_superglue = False
+            logging.warning("use_superglue was set to True, but is inconsistent with the feature space of the Frames (use_barlow_network=True); setting use_superglue=False")
 
         physical_unit_conversion = PhysicalUnitConversion.load_from_config(cfg)
         frame_pair_options.physical_unit_conversion = physical_unit_conversion
