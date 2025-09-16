@@ -21,7 +21,7 @@ do
 done
 
 # Clean and run the integration test, i.e. shortened datasets
-PARENT_DATA_DIR="/lisc/scratch/neurobiology/zimmer/wbfm/test_data"
+PARENT_DATA_DIR="/lisc/data/scratch/neurobiology/zimmer/wbfm/test_data"
 if [ -z "$USE_CLUSTER" ]; then
   echo "Running integration test without cluster"
   PARENT_PROJECT_DIR="/home/charles/Current_work/test_projects"
@@ -29,8 +29,8 @@ if [ -z "$USE_CLUSTER" ]; then
   RUNME_ARGS="-c"
 else
   echo "Running integration test on the cluster"
-  PARENT_PROJECT_DIR="/lisc/scratch/neurobiology/zimmer/wbfm/test_projects"
-  CODE_DIR="/lisc/scratch/neurobiology/zimmer/wbfm/code/wbfm/wbfm"
+  PARENT_PROJECT_DIR="/lisc/data/scratch/neurobiology/zimmer/wbfm/test_projects"
+  CODE_DIR="/lisc/data/scratch/neurobiology/zimmer/wbfm/code/wbfm/wbfm"
   RUNME_ARGS=""
 fi
 
@@ -72,7 +72,7 @@ done
 echo "Projects should have been created... starting to run the integration test"
 
 # Modify snakemake slurm options to have very short jobs, then actually run
-SLURM_UPDATE_COMMAND=$CODE_DIR/"scripts/postprocessing/copy_config_file_to_multiple_projects.sh"
+SLURM_UPDATE_COMMAND=$CODE_DIR/"scripts/folder_analysis/copy_config_file_to_multiple_projects.sh"
 NEW_CONFIG=$CODE_DIR/"alternative_project_defaults/short_video/cluster_config.yaml"
 
 # Command to actually run
