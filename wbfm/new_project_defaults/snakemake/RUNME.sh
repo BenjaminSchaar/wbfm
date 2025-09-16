@@ -35,7 +35,7 @@ do
 done
 
 # Package options
-SBATCH_OPT="sbatch -t {cluster.time} --cpus-per-task {cluster.cpus_per_task} --mem {cluster.mem} --output {cluster.output} --gres {cluster.gres} --job-name {rule} --constraint {cluster.constraint}"
+SBATCH_OPT="sbatch -t {cluster.time} --cpus-per-task {cluster.cpus_per_task} --mem {cluster.mem} --output {cluster.output} --gres {cluster.gres} --job-name {rule} --constraint '{cluster.constraint}'"
 SNAKEMAKE_OPT="-s pipeline.smk --latency-wait 60 --cores 56 --retries 2"
 if [ -n "$RESTART_RULE" ]; then
     SNAKEMAKE_OPT="$SNAKEMAKE_OPT -R $RESTART_RULE"
@@ -87,7 +87,7 @@ elif [ -z "$USE_CLUSTER" ]; then
     snakemake -s pipeline.smk --unlock  # Unlock the folder, just in case
     snakemake "$RULE" $SNAKEMAKE_OPT
 else
-    echo "Running snakemake rule $RULE on the cluster with options $SNAKEMAKE_OPT"
+    echo "Running snakemake rule $RULE on the cluster with options $SNAKEMAKE_OPT and SBATCH options: $SBATCH_OPT"
     snakemake -s pipeline.smk --unlock  # Unlock the folder, just in case
     snakemake "$RULE" $SNAKEMAKE_OPT --cluster "$SBATCH_OPT --parsable" --cluster-config cluster_config.yaml --jobs $NUM_JOBS_TO_SUBMIT --cluster-status "$CLUSTER_STATUS_SCRIPT"
 fi
