@@ -118,6 +118,8 @@ bash $COMMAND -t "$PROJECT_PATH" -s traces $RUNME_ARGS
 # Immobilized with barlow-generated tracklets
 PROJECT_PATH=$PARENT_PROJECT_DIR/"immobilized_barlow_tracklets"
 BARLOW_TRACKLET_CONFIG=$CODE_DIR/"alternative_project_defaults/barlow_tracklets/training_data_config.yaml"
+BARLOW_TRACKLET_PIPELINE=$CODE_DIR/"alternative_project_defaults/barlow_tracklets/pipeline.smk"
 bash $SLURM_UPDATE_COMMAND -t "$PROJECT_PATH" -c "$NEW_CONFIG"
 bash $SLURM_UPDATE_COMMAND -t "$PROJECT_PATH" -c "$BARLOW_TRACKLET_CONFIG"
+bash $SLURM_UPDATE_COMMAND -t "$PROJECT_PATH" -c "$BARLOW_TRACKLET_PIPELINE"
 bash $COMMAND -t "$PROJECT_PATH" -s traces $RUNME_ARGS
