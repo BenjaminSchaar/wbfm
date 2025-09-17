@@ -806,7 +806,7 @@ class ProjectData:
 
         nwb_io = NWBHDF5IO(nwb_path, mode='r', load_namespaces=True)
         if isinstance(nwb_io, NWBFile):
-            print('NWB file loaded successfully')
+            obj.logger.debug('NWB file loaded successfully')
             nwb_obj = nwb_io
         else:
             nwb_obj = nwb_io.read()
@@ -825,7 +825,7 @@ class ProjectData:
             if dat.shape[-1] == 2:
                 obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
                 obj.green_data = da.from_array(dat, chunks=chunks)[..., 1].transpose((0, 3, 1, 2))
-                print(f"Loaded red and green data from NWB file: {obj.red_data.shape}")
+                obj.logger.debug(f"Loaded red and green data from NWB file: {obj.red_data.shape}")
 
                 # Load this into the raw data as well; needed for certain steps
                 preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
@@ -837,8 +837,8 @@ class ProjectData:
 
                 preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
                 preprocessing_settings._raw_green_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
-                print("WARNING, only one video channel found; setting both channels as this data")
-                print(f"Loaded data from NWB file: {obj.red_data.shape}")
+                obj.logger.debug("WARNING, only one video channel found; setting both channels as this data")
+                obj.logger.debug(f"Loaded data from NWB file: {obj.red_data.shape}")
             else:
                 raise ValueError(f"Expected 1 or 2 channels in CalciumImageSeries, found {dat.shape[-1]}")
 
@@ -860,7 +860,7 @@ class ProjectData:
             obj.final_tracks = obj.red_traces.copy()
 
         except KeyError as e:
-            obj.logger.warning(f"Could not load traces from NWB file: {e}")
+            obj.logger.info(f"Could not load traces from NWB file: {e}")
 
         # Tracking (overwrites final_tracks above, if found)
         try:
@@ -871,7 +871,7 @@ class ProjectData:
             obj.final_tracks = df_tracking
             obj.intermediate_global_tracks = df_tracking
         except KeyError as e:
-            obj.logger.warning(f"Could not load tracks (centroids) from NWB file: {e}")
+            obj.logger.debug(f"Could not load tracks (centroids) from NWB file: {e}")
 
         try:
             activity = nwb_obj.processing['CalciumActivity']
@@ -884,11 +884,11 @@ class ProjectData:
                 df_seg_id.index = df_tracking.index
                 df_tracking = pd.concat([df_tracking, df_seg_id], axis=1)
             else:
-                obj.logger.warning("No final tracks found, saving only segmentation ids")
+                obj.logger.info("No final tracks found, saving only segmentation ids")
                 df_tracking = df_seg_id
             obj.final_tracks = df_tracking
         except KeyError as e:
-            obj.logger.warning(f"Could not load segmentation ids from NWB file: {e}")
+            obj.logger.info(f"Could not load segmentation ids from NWB file: {e}")
 
 
         # Segmentation
@@ -899,7 +899,7 @@ class ProjectData:
             chunks = (1, ) + dat.shape[1:]
             obj.segmentation = da.from_array(dat, chunks=chunks).transpose((0, 3, 1, 2))
         except (KeyError, AttributeError) as e:
-            obj.logger.warning(f"Could not load segmentation from NWB file: {e}")
+            obj.logger.info(f"Could not load segmentation from NWB file: {e}")
 
         try:
             activity = nwb_obj.processing['CalciumActivity']
@@ -911,9 +911,9 @@ class ProjectData:
             # Set to be equal to the segmentation, if it exists
             if obj.segmentation is not None:
                 obj.raw_segmentation = obj.segmentation
-                obj.logger.warning(f"Could not load raw segmentation from NWB file ({e}); using tracked segmentation instead")
+                obj.logger.info(f"Could not load raw segmentation from NWB file ({e}); using tracked segmentation instead")
             else:
-                obj.logger.warning(f"Could not load raw segmentation from NWB file: {e}")
+                obj.logger.info(f"Could not load raw segmentation from NWB file: {e}")
 
         # Other metadata
         p = PhysicalUnitConversion()
