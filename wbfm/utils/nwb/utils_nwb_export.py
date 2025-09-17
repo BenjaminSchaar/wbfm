@@ -892,10 +892,10 @@ def convert_nwb_to_trace_dataframe(nwbfile):
             elif f'{channel}RawFluor' in activity.data_interfaces:
                 red = activity[f'{channel}RawFluor'][f'{channel}CalciumImResponseSeries'].data
             else:
-                logging.warning(f"Failed to extract traces data for channel {channel}")
+                logging.debug(f"Failed to extract traces data for channel {channel}")
                 continue
         except KeyError:
-            logging.warning(f"Failed to extract traces data for channel {channel}")
+            logging.debug(f"Failed to extract traces data for channel {channel}")
             continue
 
         if rois is not None:
