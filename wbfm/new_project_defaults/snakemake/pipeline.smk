@@ -158,7 +158,7 @@ rule segmentation:
 
 # No input version, e.g. from nwb or remote preprocessing
 rule alt_segmentation:
-    input: # No input
+    input: cfg=project_cfg_fname
     output:
         metadata=os.path.join(project_dir, "1-segmentation/metadata.pickle"),
         masks=directory(os.path.join(project_dir, "1-segmentation/masks.zarr"))
@@ -210,7 +210,7 @@ rule postprocess_matches_to_tracklets:
 
 # No input version, e.g. from nwb or remote segmentation
 rule alt_build_frame_objects:
-    input: # No input
+    input: cfg=project_cfg_fname
     output:
         os.path.join(project_dir, "2-training_data/raw/frame_dat.pickle")
     threads: 56
@@ -258,7 +258,7 @@ rule barlow_tracking:
 
 # No input version, e.g. from nwb or remote segmentation
 rule alt_barlow_tracking:
-    input: # No input
+    input: cfg=project_cfg_fname
     output:
         tracks_global=os.path.join(project_dir, "3-tracking/barlow_tracker/df_barlow_tracks.h5"),
     threads: 48
