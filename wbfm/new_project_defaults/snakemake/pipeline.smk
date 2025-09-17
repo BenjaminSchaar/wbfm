@@ -223,7 +223,6 @@ rule alt_build_frame_objects:
 rule tracking:
     input:
         cfg=project_cfg_fname,
-        metadata=os.path.join(project_dir, "1-segmentation/metadata.pickle"),
         frames=os.path.join(project_dir, "2-training_data/raw/frame_dat.pickle"),
     output:
         tracks_global=os.path.join(project_dir, "3-tracking/postprocessing/df_tracks_postprocessed.h5"),
