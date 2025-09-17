@@ -3,7 +3,7 @@ import os
 
 from ruamel.yaml import YAML
 from wbfm.utils.external.custom_errors import NoBehaviorDataError, RawDataFormatError
-from wbfm.utils.projects.project_config_classes import ModularProjectConfig
+from wbfm.utils.projects.finished_project_data import ProjectData
 import snakemake
 
 from wbfm.utils.general.hardcoded_paths import load_hardcoded_neural_network_paths
@@ -21,7 +21,8 @@ if not snakemake.__version__.startswith("7.32"):
     logging.warning(f"Note: this pipeline is only tested on snakemake version 7.32.X, but found {snakemake.__version__}")
 
 # Load the folders needed for the behavioral part of the pipeline
-project_config = ModularProjectConfig(project_cfg_fname)
+project_data = ProjectData.load_final_project_data(project_cfg_fname, allow_hybrid_loading=True)
+project_config = project_data.project_config
 output_visualization_directory = project_config.get_visualization_config().absolute_subfolder
 
 try:
@@ -79,6 +80,7 @@ def _cleanup_helper(output_path):
 # Note that branch was only added in version 8+ of snakemake, which requires python 3.9 for 8.0 and 3.11 for others :(
 
 # Alternate: function to split the branches
+# Note that this is needed instead of ruleorder because the output files are different
 # https://stackoverflow.com/questions/40510347/can-snakemake-avoid-ambiguity-when-two-different-rule-paths-can-generate-a-given
 def _choose_tracker():
     if config.get('use_barlow_tracker', False):
@@ -86,7 +88,18 @@ def _choose_tracker():
     else:
         return os.path.join(project_dir, "3-tracking/postprocessing/combined_3d_tracks.h5")
 
+# For skipping some steps, use ruleorder
+if project_data.check_segmentation():
+    ruleorder: alt_build_frame_objects > build_frame_objects
+    ruleorder: alt_tracking > tracking
+else:
+    ruleorder: build_frame_objects > alt_build_frame_objects
+    ruleorder: tracking > alt_tracking
 
+if project_data.check_preprocessing_data():
+    ruleorder: alt_segmentation > segmentation
+else:
+    ruleorder: segmentation > alt_segmentation
 
 #
 # Snakemake for overall targets (either with or without behavior)
@@ -141,6 +154,12 @@ rule segmentation:
     run:
         _run_helper("1-segment_video", str(input.cfg))
 
+# No input version, e.g. from nwb or remote preprocessing
+rule alt_segmentation:
+    input: # No input
+    output: segmentation.output
+    run: segmentation.run
+    
 
 #
 # Tracklets
@@ -182,6 +201,13 @@ rule postprocess_matches_to_tracklets:
     run:
         _run_helper("2c-postprocess_matches_to_tracklets", str(input.cfg))
 
+
+# No input version, e.g. from nwb or remote segmentation
+rule alt_build_frame_objects:
+    input: # No input
+    output: alt_build_frame_objects.output
+    run: alt_build_frame_objects.run
+
 #
 # Tracking
 #
@@ -221,6 +247,11 @@ rule barlow_tracking:
         _run_helper("pipeline_alternate.3-track_using_barlow", str(input.cfg),
             model_fname=config["barlow_model_path"])
 
+# No input version, e.g. from nwb or remote segmentation
+rule alt_barlow_tracking:
+    input: # No input
+    output: barlow_tracking.output
+    run: barlow_tracking.run
 
 #
 # Traces
