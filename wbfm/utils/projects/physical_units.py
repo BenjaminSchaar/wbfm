@@ -157,7 +157,7 @@ class PhysicalUnitConversion:
                 project_cfg.logger.debug("Using hard coded camera fps; this depends on the exposure time")
                 camera_fps = opt.get('camera_fps', 1000)
                 if 'exposure_time' not in opt:
-                    logging.warning("exposure_time not found in physical_units or project config; using default")
+                    logging.debug("exposure_time not found in physical_units or project config; using default")
                 exposure_time = opt.get('exposure_time', 12)
                 frames_per_volume = get_behavior_fluorescence_fps_conversion(project_cfg)
                 opt['volumes_per_second'] = camera_fps / exposure_time / frames_per_volume
@@ -183,7 +183,7 @@ class PhysicalUnitConversion:
         raw_data_cfg = project_cfg.get_raw_data_config()
         if not raw_data_cfg.has_valid_self_path:
             opt['num_flyback_planes_discarded'] = 0
-            logging.warning("No raw data config found; assuming no flyback planes discarded")
+            logging.debug("No raw data config found; assuming no flyback planes discarded")
         elif not raw_data_cfg.config.get('flyback_saved', False):
             num_flyback_planes_discarded = raw_data_cfg.config.get('num_flyback_planes_discarded', None)
             if num_flyback_planes_discarded is None:

@@ -162,7 +162,7 @@ class ProjectData:
 
             self.data_cacher = PaperDataCache(self)
         else:
-            self.logger.warning("ProjectData initialized without a project_config object; "
+            self.logger.debug("ProjectData initialized without a project_config object; "
                                 "if this is from a NWB file, this is expected")
 
     @cached_property
@@ -181,7 +181,7 @@ class ProjectData:
         Names are aligned with the final traces
         """
         if not self.project_config.has_valid_self_path:
-            self.logger.warning("ProjectData initialized without a project_config object; intermediate tracks can't be loaded")
+            self.logger.debug("ProjectData initialized without a project_config object; intermediate tracks can't be loaded")
             return None
         tracking_cfg = self.project_config.get_tracking_config()
 
@@ -238,7 +238,7 @@ class ProjectData:
         Names are aligned with the final traces
         """
         if not self.project_config.has_valid_self_path:
-            self.logger.warning("ProjectData initialized without a project_config object; final tracks can't be loaded")
+            self.logger.debug("ProjectData initialized without a project_config object; final tracks can't be loaded")
             return None
         tracking_cfg = self.project_config.get_tracking_config()
 
@@ -381,7 +381,7 @@ class ProjectData:
         if self.verbose >= 1 and not dryrun:
             self.logger.info("First time loading all the tracklets, may take a while...")
         if not self.project_config.has_valid_self_path:
-            self.logger.warning("ProjectData initialized without a project_config object; tracklets can't be loaded")
+            self.logger.debug("ProjectData initialized without a project_config object; tracklets can't be loaded")
             return None, None
         train_cfg = self.project_config.get_training_config()
         track_cfg = self.project_config.get_tracking_config()
@@ -406,7 +406,7 @@ class ProjectData:
     def tracklet_annotator(self) -> TrackletAndSegmentationAnnotator:
         """Custom class that implements manual modification of tracklets and segmentation"""
         if not self.project_config.has_valid_self_path:
-            self.logger.warning("ProjectData initialized without a project_config object; tracklet annotator can't be loaded")
+            self.logger.debug("ProjectData initialized without a project_config object; tracklet annotator can't be loaded")
             return None
         tracking_cfg = self.project_config.get_tracking_config()
         training_cfg = self.project_config.get_training_config()

@@ -367,8 +367,8 @@ class ModularProjectConfig(ConfigFileWithProjectContext):
         except FileNotFoundError:
             # Allow a hardcoded default... fragile, but necessary for projects with deleted raw data
             cfg = default_raw_data_config()
-            self._logger.info(f"Could not find file {fname}; "
-                              f"Using hardcoded default raw data config: {cfg}")
+            self._logger.debug(f"Could not find file {fname}; "
+                               f"Using hardcoded default raw data config: {cfg}")
             return SubfolderConfigFile(_self_path=None, _config=cfg, project_dir=self.project_dir)
 
     def get_nwb_config(self, make_subfolder=True) -> SubfolderConfigFile:
