@@ -2319,9 +2319,6 @@ class ProjectData:
         print(worm)
         print()
 
-    def has_traces(self):
-        return (self.red_traces is not None) and (self.green_traces is not None)
-
     @property
     def use_physical_time(self) -> bool:
         """Whether to reindex returned traces to physical time"""
@@ -2384,6 +2381,19 @@ class ProjectData:
         """
         x = self.x_for_plots
         return [x[0], x[-1]]
+    
+    # Functions for the current status of a project (and which steps have been completed)
+    def check_preprocessed_data(self):
+        return (self.red_data is not None) and (self.green_data is not None)
+    
+    def check_segmentation(self):
+        return (self.raw_segmentation is not None) and (self.segmentation_metadata is not None)
+    
+    def check_tracking(self):
+        return self.final_tracks is not None
+    
+    def check_traces(self):
+        return (self.red_traces is not None) and (self.green_traces is not None) and (self.segmentation is not None)
 
     def __repr__(self):
         return f"=======================================\n\
@@ -2402,10 +2412,10 @@ raw_segmentation:         {self.raw_segmentation is not None}\n\
 colored_segmentation:     {self.segmentation is not None}\n\
 ============Tracking===================\n\
 tracklets:                {self.has_tracklets()}\n\
-final_tracks:             {self.final_tracks is not None}\n\
+final_tracks:             {self.check_tracking()}\n\
 manual_tracking:          {self.df_manual_tracking is not None}\n\
 ============Traces=====================\n\
-traces:                   {self.has_traces()}\n\n"
+traces:                   {self.check_traces()}\n\n"
 
 
 def template_matches_to_dataframe(project_data: ProjectData,
