@@ -25,6 +25,11 @@ segmentation:
     mem: 256G
     cpus_per_task: 40
 
+alt_segmentation:
+    time: 1-12:00:00
+    mem: 256G
+    cpus_per_task: 40
+
 match_frame_pairs:
     time: 0-12:00:00
     mem: 128G
@@ -32,6 +37,13 @@ match_frame_pairs:
     constraint: "l40s|a30|t4|v100|l4"
 
 build_frame_objects:
+    time: 0-12:00:00
+    cpus_per_task: 20
+    mem: 128G
+    gres: gpu:1
+    constraint: "l40s|a30|t4|v100|l4"
+
+alt_build_frame_objects:
     time: 0-12:00:00
     cpus_per_task: 20
     mem: 128G
@@ -54,6 +66,11 @@ tracking:
     constraint: "l40s|a30|t4|v100|l4"
 
 barlow_tracking:
+    cpus_per_task: 16
+    gres: gpu:1
+    constraint: "l40s|a30|t4|v100|l4"
+
+alt_barlow_tracking: 
     cpus_per_task: 16
     gres: gpu:1
     constraint: "l40s|a30|t4|v100|l4"
