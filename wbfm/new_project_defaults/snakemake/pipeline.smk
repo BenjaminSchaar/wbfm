@@ -97,7 +97,7 @@ else:
     ruleorder: build_frame_objects > alt_build_frame_objects
     ruleorder: tracking > alt_tracking
 
-if project_data.check_preprocessing_data():
+if project_data.check_preprocessed_data():
     print("Detected completed preprocessing; allowing rules that skip preprocessing")
     ruleorder: alt_segmentation > segmentation
 else:
