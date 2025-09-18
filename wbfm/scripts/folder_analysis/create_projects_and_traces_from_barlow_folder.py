@@ -95,7 +95,7 @@ def main():
     #########################################################################################
     # Note that the script is already recursive
 
-    CMD = [os.path.join(wbfm_home, 'wbfm', 'scripts', 'cluster', 'run_all_projects_in_parent_folder.sh')]
+    CMD = ["bash", os.path.join(wbfm_home, 'wbfm', 'scripts', 'cluster', 'run_all_projects_in_parent_folder.sh')]
     CMD.extend(["-t", args.new_location,  "-s" , "traces"])
     if args.debug:
         # Dryrun
