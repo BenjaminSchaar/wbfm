@@ -746,7 +746,7 @@ class ProjectData:
                                 f"Did not find {field.replace('_', ' ')} in nwb file, continuing"
                             )
             else:
-                project_data.logger.info(f"Found no nwb file, continuing")
+                project_data.logger.debug(f"Found no nwb file, continuing")
 
         return project_data
 
