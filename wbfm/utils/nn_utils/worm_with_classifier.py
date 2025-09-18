@@ -1,3 +1,4 @@
+import logging
 import os.path
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
@@ -67,10 +68,16 @@ class FeatureSpaceTemplateMatcher(FrameMatcher):
 @dataclass
 class DirectFeatureSpaceTemplateMatcher(FeatureSpaceTemplateMatcher):
     """Direct matching in the feature space without re-embedding or other postprocessing"""
-    embedding_template: torch.tensor = None
+    
+    @property
+    def embedding_template(self) -> torch.tensor:
+        try:
+            return torch.from_numpy(self.template_frame.all_features)
+        except TypeError as e:
+            logging.error(f"Invalid frame encountered, validity should be checked before matching is attempted: \
+                          {self.template_frame}")
+            raise e
 
-    def __post_init__(self):
-        self.embedding_template = torch.from_numpy(self.template_frame.all_features)
 
     def match_target_frame(self, target_frame: ReferenceFrame) -> MatchesWithConfidence:
         """
