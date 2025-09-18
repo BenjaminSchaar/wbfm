@@ -51,6 +51,7 @@ def main():
     for trial_dir in trial_dirs:
         trial_name = trial_dir.name
         # try:
+        barlow_model_path = Path(trial_dir) / Path(args.model_fname)
         print(f"Starting pipeline for {trial_name}")
         if args.debug:
             print(f"[DEBUG] Model path: {barlow_model_path}")
@@ -61,7 +62,6 @@ def main():
             target_suffix=trial_name,
             steps_to_keep=['preprocessing', 'segmentation']
         )
-        barlow_model_path = Path(trial_dir) / Path(args.model_fname)
         if not barlow_model_path.is_file():
             print(f"Warning: Model file not found: {barlow_model_path} - skipping {trial_name}")
             continue
