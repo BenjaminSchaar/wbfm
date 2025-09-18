@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 import re
 
+from wbfm.utils.general.utils_filenames import get_location_of_installed_project
 from wbfm.utils.projects.finished_project_data import ProjectData
 from wbfm.utils.projects.project_config_classes import make_project_like
 
@@ -75,7 +76,6 @@ def submit_trace_job(trial_name, new_location, dispatcher_script, dependency_job
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run pipeline: copy → track → extract (all via SBATCH)")
-    parser.add_argument("--wbfm-home", required=False, help="Path to the wbfm codebase root directory", default="/lisc/data/scratch/neurobiology/zimmer/wbfm/code/wbfm/wbfm/")
     parser.add_argument("--finished-path", required=True, help="Path to finished project, usually an analyzed ground truth project")
     parser.add_argument("--new-location", required=True, help="Base path for new projects")
     parser.add_argument("--models-dir", required=True, help="Folder containing trial subfolders with models OR a single trial directory when --single-trial is used")
@@ -89,17 +89,10 @@ def parse_args():
 
 def main():
     args = parse_args()
-    models_dir = Path(args.models_dir)
-    make_project_script = Path(args.wbfm_home) / "scripts/postprocessing/make_project_like.py"
-    track_script = Path(args.wbfm_home) / "scripts/pipeline_alternate/3-track_using_barlow.py"
-    dispatcher_script = Path(args.wbfm_home) / "scripts/4-make_final_traces.py"
-    if not os.path.exists(dispatcher_script) or not os.path.exists(track_script) or not os.path.exists(make_project_script):
-        print(f"Warning: One or more scripts not found: {dispatcher_script}, {track_script}, {make_project_script}, aborting")
-        return
-    use_projection_space = args.use_projection_space
 
-    # NEW: Extract parent folder name (e.g. "2025_07_01")
-    finished_path_parent = Path(args.finished_path).parent.name
+    wbfm_home = get_location_of_installed_project()
+    models_dir = Path(args.models_dir)
+    use_projection_space = args.use_projection_space
 
     if args.single_trial:
         # Just one trial, directly from models_dir
@@ -117,7 +110,9 @@ def main():
         print(f"[DEBUG] Will only process the first trial: {trial_dirs[0].name}")
         trial_dirs = trial_dirs[:1]
 
-    # First, create all the projects sequentially (so that the config files can be easily modified)
+    #########################################################################################
+    # Create projects and update the config file to target the proper barlow model
+    #########################################################################################
     for trial_dir in trial_dirs:
         trial_name = trial_dir.name
         # try:
@@ -131,9 +126,7 @@ def main():
             target_suffix=trial_name,
             steps_to_keep=['preprocessing', 'segmentation']
         )
-
-        # Update the config file to target the proper barlow model
-        barlow_model_path = trial_dir / args.model_fname
+        barlow_model_path = Path(trial_dir) / Path(args.model_fname)
         if not barlow_model_path.is_file():
             print(f"Warning: Model file not found: {barlow_model_path} - skipping {trial_name}")
             continue
@@ -147,7 +140,8 @@ def main():
                 tracker_params=dict(
                     use_barlow_network=True,
                     encoder_opt=dict(
-                        network_path=barlow_model_path
+                        network_path=barlow_model_path,
+                        use_projection_space=use_projection_space
                     )
                 )
             )
@@ -159,26 +153,15 @@ def main():
             snakemake_config.config.update(config_updates)
             snakemake_config.update_self_on_disk()
 
-        #     # Track
-        #     track_jobid = submit_tracking_job(
-        #         trial_name, project_base_path, str(barlow_model_path), track_script,
-        #         dependency_jobid=copy_jobid, debug=args.debug, use_projection_space=use_projection_space
-        #     )
+    #########################################################################################
+    # Actually submit jobs for full pipeline
+    #########################################################################################
+    # Note that the script is already recursive
 
-        #     # Extract traces
-        #     submit_trace_job(
-        #         trial_name, project_base_path, dispatcher_script,
-        #         dependency_jobid=track_jobid, debug=args.debug
-        #     )
+    CMD = os.path.join(wbfm_home, 'wbfm', 'scripts', 'cluster', 'run_all_projects_in_parent_folder.sh')
+    subprocess.call(f"{CMD} -t {args.new_location} -s traces")
 
-        #     if args.debug:
-        #         print(f"[DEBUG] Submitted all jobs for {trial_name}")
-
-            # except Exception as e:
-            #     print(f"Error in {trial_name}: {e}")
-            #     continue
-
-    print(f"All jobs for {len(trial_dirs)} trials submitted successfully.")
+    print(f"All jobs for {len(trial_dirs)} trials in folder {args.new_location} submitted successfully.")
 
 
 if __name__ == "__main__":
