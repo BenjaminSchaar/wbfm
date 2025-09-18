@@ -30,15 +30,14 @@ def match_all_adjacent_frames(all_frame_dict, start_volume, end_volume, frame_pa
     return all_frame_pairs
 
 
-def calculate_frame_objects_full_video(video_data, external_detections, frame_range, video_fname,
+def calculate_frame_objects_full_video(video_data, frame_range, video_fname,
                                        z_depth_neuron_encoding, encoder_opt=None, max_workers=8,
                                        preprocessing_settings=None, 
                                        use_barlow_network=False, project_data=None,
                                        logger=None, **kwargs):
     # Get initial volume; settings are same for all
     vol_shape = video_data[0, ...].shape
-    all_detected_neurons = DetectedNeurons(external_detections)
-    all_detected_neurons.setup()
+    all_detected_neurons = project_data.segmentation_metadata
 
     if use_barlow_network:
         # Load the network

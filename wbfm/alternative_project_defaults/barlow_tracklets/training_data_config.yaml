@@ -11,7 +11,7 @@ self_path: 2-training_data/training_data_config.yaml # for programmatic updating
 tracker_params: # OPTIMIZE
 #  num_frames: 100  # Uncomment this if you want a different number from the main project!
   z_depth_neuron_encoding: 3.0
-  external_detections: null # Will be synchronized with segmentation
+  external_detections: null # TODO: deprecate
   use_barlow_network: true
   encoder_opt:
     network_path: /lisc/scratch/neurobiology/zimmer/wbfm/TrainedBarlow/barlow_ZIM2165_Gcamp7b_worm1-2022_11_28_from_search/trial_13/resnet50.pth # Path to the Barlow network model folder, which should accept a 3d image
