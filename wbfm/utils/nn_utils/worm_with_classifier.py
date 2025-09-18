@@ -303,8 +303,11 @@ def track_using_template(all_frames, num_frames, project_data, tracker: FrameMat
     all_matches = []
     for t in tqdm(range(num_frames), leave=False):
         # Note: if there are no neurons, this list should be empty
-        matches_class = tracker.match_target_frame(all_frames[t])
-        all_matches.append(matches_class.array_matches_with_conf.tolist())
+        try:
+            matches_class = tracker.match_target_frame(all_frames[t])
+            all_matches.append(matches_class.array_matches_with_conf.tolist())
+        except NoMatchesError:
+            all_matches.append([])
     df = template_matches_to_dataframe(project_data, all_matches)
     return df
 

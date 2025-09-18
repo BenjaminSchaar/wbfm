@@ -1345,13 +1345,11 @@ class NapariTraceExplorer(QtWidgets.QWidget):
 
     def init_universal_subplot(self):
         # Note: this causes a hang when the main window is closed, even though I'm trying to set the parent
-        # self.mpl_widget = PlotQWidget(self.viewer.window._qt_window.centralWidget())
         self.mpl_widget = PlotQWidget()
         self.static_ax = self.mpl_widget.canvas.fig.subplots()
         self.reference_ax = self.static_ax.twinx()
         self.main_subplot_xlim = [0, self.dat.num_frames]
-        # self.mpl_widget = FigureCanvas(Figure(figsize=(5, 3)))
-        # self.static_ax = self.mpl_widget.figure.subplots()
+        
         # Connect clicking to a time change
         # https://matplotlib.org/stable/users/event_handling.html
         on_click = lambda event: self.on_subplot_click(event)
