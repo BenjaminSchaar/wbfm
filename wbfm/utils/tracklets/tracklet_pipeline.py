@@ -136,8 +136,8 @@ def save_all_tracklets(df, df_multi_index_format, training_config):
 
 def unpack_config_for_tracklets(training_config, segmentation_config):
     params = training_config.config['pairwise_matching_params']
-    z_threshold = params['z_threshold']
-    min_confidence = params['min_confidence']
+    z_threshold = params.get('z_threshold', None)
+    min_confidence = params.get('min_confidence', 0.1)
     # matching_method = params['matching_method']
 
     fname = os.path.join('raw', 'match_dat.pickle')
