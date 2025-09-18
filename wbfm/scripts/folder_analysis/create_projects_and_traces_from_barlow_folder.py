@@ -60,7 +60,8 @@ def main():
             project_path=args.finished_path, 
             target_directory=args.new_location, 
             target_suffix=trial_name,
-            steps_to_keep=['preprocessing', 'segmentation']
+            steps_to_keep=['preprocessing', 'segmentation'],
+            verbose=3 if args.debug else 0
         )
         if not barlow_model_path.is_file():
             print(f"Warning: Model file not found: {barlow_model_path} - skipping {trial_name}")
@@ -95,7 +96,11 @@ def main():
     # Note that the script is already recursive
 
     CMD = os.path.join(wbfm_home, 'wbfm', 'scripts', 'cluster', 'run_all_projects_in_parent_folder.sh')
-    subprocess.call(f"{CMD} -t {args.new_location} -s traces")
+    CMD = f"{CMD} -t {args.new_location} -s traces"
+    if args.debug:
+        # Dryrun
+        CMD += " -n"
+    subprocess.call(CMD)
 
     print(f"All jobs for {len(trial_dirs)} trials in folder {args.new_location} submitted successfully.")
 
