@@ -295,6 +295,11 @@ class ModularProjectConfig(ConfigFileWithProjectContext):
     def get_tracking_config(self) -> SubfolderConfigFile:
         fname = Path(self.config['subfolder_configs']['tracking'])
         return SubfolderConfigFile(**self._check_path_and_load_config(fname))
+    
+    def get_snakemake_config(self) -> SubfolderConfigFile:
+        """Uniquely, this config file must be local; it is hardcoded here instead of read from subfolder_configs"""
+        fname = Path(os.path.join('snakemake', 'snakemake_config.yaml'))
+        return SubfolderConfigFile(**self._check_path_and_load_config(fname))
 
     def get_preprocessing_config(self) -> SubfolderConfigFile:
         """
@@ -1045,7 +1050,6 @@ def make_project_like(project_path: str, target_directory: str,
                       steps_to_keep: list = None,
                       target_suffix: str = None,
                       new_project_name: str = None, 
-                      config_files_to_update: list = None,
                       verbose=1):
     """
     Copy all config files from a project, i.e. only the files that would exist in a new project

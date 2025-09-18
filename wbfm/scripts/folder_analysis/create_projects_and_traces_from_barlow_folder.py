@@ -1,43 +1,12 @@
+from multiprocessing import Pool
 import argparse
 import os
 import subprocess
 from pathlib import Path
 import re
 
-SBATCH_TEMPLATES = {
-    "copy_project": """#!/bin/bash
-#SBATCH --job-name={job_name}
-#SBATCH --output=logs/{job_name}_%j.out
-#SBATCH --error=logs/{job_name}_%j.err
-#SBATCH --time=00:10:00
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=16G
-
-{command}
-""",
-    "track": """#!/bin/bash
-#SBATCH --job-name={job_name}
-#SBATCH --output=logs/{job_name}_%j.out
-#SBATCH --error=logs/{job_name}_%j.err
-#SBATCH --time=03:00:00
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=128G
-#SBATCH --gres=gpu:1
-#SBATCH --no-requeue
-
-{command}
-""",
-    "extract_traces": """#!/bin/bash
-#SBATCH --job-name={job_name}
-#SBATCH --output=logs/{job_name}_%j.out
-#SBATCH --error=logs/{job_name}_%j.err
-#SBATCH --time=01:00:00
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=128G
-
-{command}
-"""
-}
+from wbfm.utils.projects.finished_project_data import ProjectData
+from wbfm.utils.projects.project_config_classes import make_project_like
 
 
 def submit_job(script_path, dependency=None, debug=False):
@@ -148,44 +117,66 @@ def main():
         print(f"[DEBUG] Will only process the first trial: {trial_dirs[0].name}")
         trial_dirs = trial_dirs[:1]
 
+    # First, create all the projects sequentially (so that the config files can be easily modified)
     for trial_dir in trial_dirs:
         trial_name = trial_dir.name
+        # try:
+        print(f"Starting pipeline for {trial_name}")
+        if args.debug:
+            print(f"[DEBUG] Model path: {barlow_model_path}")
+
+        new_project_name = make_project_like(
+            project_path=args.finished_path, 
+            target_directory=args.new_location, 
+            target_suffix=trial_name,
+            steps_to_keep=['preprocessing', 'segmentation']
+        )
+
+        # Update the config file to target the proper barlow model
         barlow_model_path = trial_dir / args.model_fname
         if not barlow_model_path.is_file():
             print(f"Warning: Model file not found: {barlow_model_path} - skipping {trial_name}")
             continue
 
-        try:
-            print(f"Starting pipeline for {trial_name}")
-            if args.debug:
-                print(f"[DEBUG] Model path: {barlow_model_path}")
-
-            # Copy project
-            copy_jobid = submit_copy_job(
-                trial_name, args.finished_path, args.new_location, make_project_script, debug=args.debug
+        # Two options: use tracklets or direct segmentation
+        project_data = ProjectData.load_final_project_data(new_project_name, verbose=0)
+        project_config = project_data.project_config
+        if args.use_tracklets:
+            tracklet_config = project_config.get_training_config()
+            config_updates = dict(
+                tracker_params=dict(
+                    use_barlow_network=True,
+                    encoder_opt=dict(
+                        network_path=barlow_model_path
+                    )
+                )
             )
+            tracklet_config.config.update(config_updates)
+            tracklet_config.update_self_on_disk()
+        else:
+            snakemake_config = project_config.get_snakemake_config()
+            config_updates = dict(use_barlow_tracker=True, barlow_model_path=barlow_model_path)
+            snakemake_config.config.update(config_updates)
+            snakemake_config.update_self_on_disk()
 
-            # Build project base path dynamically
-            project_base_path = str(Path(args.new_location) / finished_path_parent)
+        #     # Track
+        #     track_jobid = submit_tracking_job(
+        #         trial_name, project_base_path, str(barlow_model_path), track_script,
+        #         dependency_jobid=copy_jobid, debug=args.debug, use_projection_space=use_projection_space
+        #     )
 
-            # Track
-            track_jobid = submit_tracking_job(
-                trial_name, project_base_path, str(barlow_model_path), track_script,
-                dependency_jobid=copy_jobid, debug=args.debug, use_projection_space=use_projection_space
-            )
+        #     # Extract traces
+        #     submit_trace_job(
+        #         trial_name, project_base_path, dispatcher_script,
+        #         dependency_jobid=track_jobid, debug=args.debug
+        #     )
 
-            # Extract traces
-            submit_trace_job(
-                trial_name, project_base_path, dispatcher_script,
-                dependency_jobid=track_jobid, debug=args.debug
-            )
+        #     if args.debug:
+        #         print(f"[DEBUG] Submitted all jobs for {trial_name}")
 
-            if args.debug:
-                print(f"[DEBUG] Submitted all jobs for {trial_name}")
-
-        except subprocess.CalledProcessError as e:
-            print(f"Error in {trial_name}: {e}")
-            continue
+            # except Exception as e:
+            #     print(f"Error in {trial_name}: {e}")
+            #     continue
 
     print(f"All jobs for {len(trial_dirs)} trials submitted successfully.")
 
