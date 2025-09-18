@@ -157,6 +157,7 @@ def reindex_segmentation_using_config(project_data: ProjectData, DEBUG=False):
 
 def full_step_4_make_traces_from_config(project_cfg, allow_only_global_tracker=False, match_using_indices=True, 
                                         DEBUG=False, **project_kwargs):
+    project_kwargs['verbose'] = project_kwargs.get('verbose', 0)
     project_dir = project_cfg.project_dir
     project_data = ProjectData.load_final_project_data(project_cfg, **project_kwargs)
     # Set environment variables to (try to) deal with rare blosc decompression errors
