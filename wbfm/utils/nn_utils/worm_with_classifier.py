@@ -40,7 +40,7 @@ class FeatureSpaceTemplateMatcher(FrameMatcher):
     template_frame: ReferenceFrame
 
     # To be optimized
-    confidence_gamma: float = 1.0  # High values promote less confident matches
+    confidence_gamma: float = 2.0  # High values promote less confident matches
     cdist_p: int = 2
 
     def check_target_frame_can_be_matched(self, target_frame: ReferenceFrame) -> bool:
