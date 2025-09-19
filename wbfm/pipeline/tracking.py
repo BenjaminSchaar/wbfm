@@ -57,7 +57,7 @@ def track_using_using_config(project_cfg, use_superglue_tracker=False, DEBUG=Fal
         umap = UMAP(**opt_umap)
         umap.fit(X_all_neurons)
         def _init_tracker(t):
-            return PostprocessedFeatureSpaceTemplateMatcher(template_frame=all_frames[t], confidence_gamma=100, postprocesser=umap)
+            return PostprocessedFeatureSpaceTemplateMatcher(template_frame=all_frames[t], confidence_gamma=100, postprocesser=umap.transform)
         
         tracker = _init_tracker(t=t_template)
     
