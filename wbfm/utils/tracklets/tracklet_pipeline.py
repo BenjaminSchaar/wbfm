@@ -10,7 +10,8 @@ import pandas as pd
 
 from wbfm.utils.neuron_matching.class_frame_pair import FramePair, FramePairOptions
 from wbfm.utils.nn_utils.superglue import SuperGlueUnpackerWithTemplate
-from wbfm.utils.nn_utils.worm_with_classifier import DirectFeatureSpaceTemplateMatcher, SuperGlueFullVideoTrackerWithTemplate
+from wbfm.utils.nn_utils.worm_with_classifier import PostprocessedFeatureSpaceTemplateMatcher, SuperGlueFullVideoTrackerWithTemplate
+from wbfm.utils.neuron_matching.utils_candidate_matches import fit_umap_using_frames
 
 from wbfm.utils.neuron_matching.feature_pipeline import match_all_adjacent_frames
 from wbfm.utils.projects.finished_project_data import ProjectData
@@ -44,12 +45,6 @@ def match_all_adjacent_frames_using_config(project_config: ModularProjectConfig,
     project_data = ProjectData.load_final_project_data_from_config(project_config)
     project_config.logger.info(f"Matching frames (pairwise)")
 
-    # Check for previously produced intermediate products
-    raw_fname = training_config.resolve_relative_path(os.path.join('raw', 'clust_df_dat.pickle'),
-                                                      prepend_subfolder=True)
-    # if os.path.exists(raw_fname):
-    #     raise FileExistsError(f"Found old raw data at {raw_fname}; either rename or skip this step to reuse")
-
     # Load the previous step
     all_frame_dict = project_data.raw_frames
 
@@ -63,7 +58,9 @@ def match_all_adjacent_frames_using_config(project_config: ModularProjectConfig,
     if frame_pair_options.use_superglue:
         all_frame_pairs = build_frame_pairs_using_superglue(all_frame_dict, frame_pair_options, project_data)
     else:
-        all_matcher_dict = {k: DirectFeatureSpaceTemplateMatcher(template_frame=v) for k, v in all_frame_dict.items()}
+        # Use UMAP embedding by default
+        umap = fit_umap_using_frames(all_frame_dict)
+        all_matcher_dict = {k: PostprocessedFeatureSpaceTemplateMatcher(template_frame=v, postprocesser=umap.transform) for k, v in all_frame_dict.items()}
         all_frame_pairs = match_all_adjacent_frames(all_matcher_dict, start_volume, end_volume, frame_pair_options, use_tracker_class=True)
 
     with safe_cd(project_config.project_dir):

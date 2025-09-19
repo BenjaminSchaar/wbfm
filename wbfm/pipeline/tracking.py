@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 import tensorflow as tf
+
 tf.__version__  # tf must be imported, see https://github.com/pytorch/pytorch/issues/81140
+from wbfm.utils.neuron_matching.utils_candidate_matches import fit_umap_using_frames
 
 from wbfm.utils.external.utils_pandas import fill_missing_indices_with_nan
 from wbfm.utils.neuron_matching.long_range_matching import _unpack_for_track_tracklet_matching, \
@@ -44,18 +46,7 @@ def track_using_using_config(project_cfg, use_superglue_tracker=False, DEBUG=Fal
             return tracker
         
     elif use_umap_preprocessing:
-        project_cfg.logger.info("Pretraining UMAP for global space embedding")
-        from umap import UMAP
-        X_all_neurons = []
-
-        for f in all_frames.values():
-            if f.all_features is not None:
-                X_all_neurons.append(f.all_features)
-            
-        X_all_neurons = np.vstack(X_all_neurons)
-        opt_umap = dict(n_components=10, n_neighbors=10, min_dist=0)
-        umap = UMAP(**opt_umap)
-        umap.fit(X_all_neurons)
+        umap = fit_umap_using_frames(all_frames)
         def _init_tracker(t):
             return PostprocessedFeatureSpaceTemplateMatcher(template_frame=all_frames[t], confidence_gamma=100, postprocesser=umap.transform)
         

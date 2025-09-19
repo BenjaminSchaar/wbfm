@@ -357,3 +357,19 @@ def combine_and_rename_multiple_dataframes(all_raw_dfs, i_base):
     else:
         df_combined = all_dfs[0]
     return df_combined
+
+
+def fit_umap_using_frames(all_frames):
+    print("Pretraining UMAP for global space embedding")
+    from umap import UMAP
+    X_all_neurons = []
+
+    for f in all_frames.values():
+        if f.all_features is not None:
+            X_all_neurons.append(f.all_features)
+
+    X_all_neurons = np.vstack(X_all_neurons)
+    opt_umap = dict(n_components=10, n_neighbors=10, min_dist=0)
+    umap = UMAP(**opt_umap)
+    umap.fit(X_all_neurons)
+    return umap
