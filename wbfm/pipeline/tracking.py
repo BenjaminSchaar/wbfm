@@ -42,7 +42,7 @@ def track_using_using_config(project_cfg, use_superglue_tracker=False, DEBUG=Fal
         
     else:
         def _init_tracker(t):
-            return DirectFeatureSpaceTemplateMatcher(template_frame=all_frames[t])
+            return DirectFeatureSpaceTemplateMatcher(template_frame=all_frames[t], confidence_gamma=100)
         
         tracker = _init_tracker(t=t_template)
 
