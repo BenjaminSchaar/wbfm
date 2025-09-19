@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 import re
 from pydantic.utils import deep_update
+from ruamel.yaml import YAML
 
 from wbfm.utils.general.utils_filenames import get_location_of_installed_project
 from wbfm.utils.projects.finished_project_data import ProjectData
@@ -12,9 +13,9 @@ from wbfm.utils.projects.project_config_classes import make_project_like
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run pipeline: copy → track → extract (all via SBATCH)")
-    parser.add_argument("--finished-path", required=True, help="Path to finished project, usually an analyzed ground truth project")
     parser.add_argument("--new-location", required=True, help="Base path for new projects")
     parser.add_argument("--models-dir", required=True, help="Folder containing trial subfolders with models OR a single trial directory when --single-trial is used")
+    parser.add_argument("--finished-path", default=None, help="Path to finished project, usually an analyzed ground truth project")
     parser.add_argument("--model-fname", default="resnet50.pth", help="Model filename inside each trial folder")
     parser.add_argument("--use_projection_space", action="store_true", help="Using projection space or final embedding space")
     parser.add_argument("--single-trial", action="store_true", help="Treat --models-dir as a single trial directory instead of a folder of trials")
@@ -29,6 +30,15 @@ def main():
     wbfm_home = get_location_of_installed_project()
     models_dir = Path(args.models_dir)
     use_projection_space = args.use_projection_space
+
+    if args.finished_path is None:
+        # Then load it from the train_config.yaml file in the main model_dir
+        fname = os.path.join(models_dir, 'train_config.yaml')
+        with open(fname, 'r') as f:
+            training_config = YAML().load(f)
+        project_path = training_config['project_path']
+    else:
+        project_path = args.finished_path
 
     if args.single_trial:
         # Just one trial, directly from models_dir
@@ -58,7 +68,7 @@ def main():
             print(f"[DEBUG] Model path: {barlow_model_path}")
 
         new_project_name = make_project_like(
-            project_path=args.finished_path, 
+            project_path=project_path, 
             target_directory=args.new_location, 
             target_suffix=trial_name,
             steps_to_keep=['preprocessing', 'segmentation'],
