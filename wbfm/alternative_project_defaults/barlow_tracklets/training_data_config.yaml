@@ -26,7 +26,7 @@ pairwise_matching_params:
   add_fdnc_to_candidates: false
   fdnc_options:
     topn: 1
-  min_confidence: 0.1
+  min_confidence: 0.01
   z_threshold: 2.5
   matching_method: bipartite  # Or unanimous
   preprocess_using_global_rotation: false
