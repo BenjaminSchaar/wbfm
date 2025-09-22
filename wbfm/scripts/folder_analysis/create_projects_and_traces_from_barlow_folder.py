@@ -20,6 +20,7 @@ def parse_args():
     parser.add_argument("--use_projection_space", action="store_true", help="Using projection space or final embedding space")
     parser.add_argument("--single-trial", action="store_true", help="Treat --models-dir as a single trial directory instead of a folder of trials")
     parser.add_argument("--use_tracklets", action="store_true", help="Use tracklets instead of clustering to build final tracks")
+    parser.add_argument("--use_label_propagation", action="store_true", help="Use alternate clustering method")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode (runs only one trial with verbose output)")
     return parser.parse_args()
 
@@ -101,6 +102,12 @@ def main():
             config_updates = dict(use_barlow_tracker=True, barlow_model_path=str(barlow_model_path))
             snakemake_config.config.update(config_updates)
             snakemake_config.update_self_on_disk()
+            if args.use_label_propagation:
+                # Also update the tracking config file
+                tracking_config = project_config.get_tracking_config()
+                config_updates = dict(barlow_tracker=dict(tracking_mode='global'))
+                recursive_dict_update(tracking_config.config, config_updates)
+                tracking_config.update_self_on_disk()
 
     #########################################################################################
     # Actually submit jobs for full pipeline
