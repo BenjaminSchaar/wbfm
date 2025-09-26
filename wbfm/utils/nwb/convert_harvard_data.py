@@ -5,16 +5,15 @@ from pynwb import NWBFile, NWBHDF5IO
 from pynwb.file import Subject
 from pynwb.behavior import Position, SpatialSeries
 from ndx_multichannel_volume import MultiChannelVolumeSeries
-from wbfm.utils.nwb.utils_nwb_export import build_optical_channel_objects, calc_simple_segmentation_mapping_table, load_per_neuron_position
+from wbfm.utils.nwb.utils_nwb_export import build_optical_channel_objects, calc_simple_segmentation_mapping_table, load_per_neuron_position,
+CustomDataChunkIterator, dask_stack_volumes, segment_from_centroids_using_watershed
 from pynwb import TimeSeries
 from datetime import datetime
 from dateutil.tz import tzlocal
-from wbfm.utils.nwb.utils_nwb_export import CustomDataChunkIterator
 import dask.array as da
 from pathlib import Path
 import argparse
 from dask import delayed
-from skimage.segmentation import watershed
 import logging
 from scipy import ndimage as ndi
 from tqdm.auto import tqdm
@@ -31,91 +30,6 @@ def load_frame(h5_path, i):
     with h5py.File(h5_path, "r") as h5_file:
         data = h5_file[str(i)]["frame"][...]
         return np.array(data).transpose((1, 2, 3, 0))  # Indirect lazy loading via dask.delayed
-
-
-def dask_stack_volumes(volume_iter):
-    """Stack a generator of volumes into a dask array along time."""
-    return da.stack(volume_iter, axis=0)
-
-def segment_from_centroids_using_watershed(centroids, video, compactness=0.5, dtype=np.uint16, noise_threshold=3, DEBUG=False):
-
-    if len(video.shape) == 5:
-        video = video[..., 0]  # Just take the red channel
-    T, X, Y, Z = video.shape
-
-    client = get_client()
-    video_future = client.scatter(video, broadcast=True)
-    
-    # Stack results
-    segmented_video = dask_stack_volumes([da.from_delayed(_iter_segment_video(video_future, centroids[t], t, noise_threshold, dtype, compactness), shape=(X, Y, Z), dtype=dtype) for t in range(T)])
-
-    return segmented_video
-
-@delayed
-def _iter_segment_video(video, frame_centroids, t, noise_threshold, dtype, compactness):
-    """Segment a single timepoint using watershed"""
-    video_frame = video[t]
-    X, Y, Z = video_frame.shape
-    
-    # Create markers as a full-size volume from centroids
-    markers = np.zeros_like(video_frame, dtype=np.int32)
-    
-    for i, (x, y, z) in enumerate(frame_centroids):
-        # Convert to integer coordinates and ensure they're within bounds
-        if np.isnan(x):
-            continue
-        x_int, y_int, z_int = int(round(x)), int(round(y)), int(round(z))
-        
-        if (0 <= z_int < Z and 0 <= y_int < Y and 0 <= x_int < X):
-            # Labels start from 1, and assume the centroids are in the correct order
-            markers[x_int, y_int, z_int] = i + 1
-            # Also make sure that this exact point is not 0 in the video
-            if video_frame[x_int, y_int, z_int] <= noise_threshold:
-                video_frame[x_int, y_int, z_int] = noise_threshold + 1
-                logging.warning(f"Very dim centroid ({i+1}) found for time {t}; setting coordinates to threshold level ({noise_threshold+1}) ")
-    
-    # If no valid markers, return empty segmentation
-    if markers.max() == 0:
-        return np.zeros_like(video_frame, dtype=dtype)
-    
-    try:
-        # Apply distance transform to the volume
-        distance = ndi.distance_transform_edt(video_frame)
-    
-        # Apply watershed segmentation
-        segmentation = watershed(
-            -distance,
-            markers, 
-            compactness=compactness,
-            mask=video_frame > noise_threshold,
-            watershed_line=False
-        )
-    except Exception as e:
-        logging.warning(f"Watershed failed for frame {t} with {len(markers)} markers: {e}")
-        return np.zeros_like(video_frame, dtype=dtype)
-
-    # # Remap segmentation so each region gets the marker label that seeded it (watershed skips missing indices)  
-    # unique_labels = np.unique(segmentation)
-    # remapped = np.zeros_like(segmentation, dtype=dtype)
-    # for label in unique_labels:
-    #     if label == 0:
-    #         continue  # background
-    #     # Find which marker generated this region
-    #     mask = (segmentation == label)
-    #     marker_labels = markers[mask]
-    #     marker_labels = marker_labels[marker_labels > 0]
-    #     if len(marker_labels) > 0:
-    #     # Assign the most common marker label to the region
-    #         new_label = np.bincount(marker_labels).argmax()
-    #     remapped[mask] = new_label
-    # segmentation = remapped
-    # yield da.from_array(segmentation.astype(dtype))
-    return segmentation.astype(dtype)
-            
-        # except Exception as e:
-        #     logging.warning(f"Watershed failed for frame {frame_idx}: {e}")
-        #     return markers.astype(dtype)
-
 
 
 def convert_harvard_to_nwb(input_path, 
