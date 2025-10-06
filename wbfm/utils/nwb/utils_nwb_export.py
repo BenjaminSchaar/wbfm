@@ -1474,11 +1474,12 @@ def load_per_neuron_position(nwbfile_module):
         # The segmentation id (track id) is stored in the "control" field of the series (there is only one series in this case)
         assert len(nwbfile_module.spatial_series) == 1, "Expected only one spatial series"
         series = list(nwbfile_module.spatial_series.values())[0]
-        seg_ids = series.control[:]
+        raw_neuron_ind_in_list = series.control[:]
         # Pivot the values, multiindex columns = (object_id, variable)
-        df['raw_segmentation_id'] = seg_ids
-        df['neuron_name'] = df['raw_segmentation_id'].apply(lambda x: int2name_neuron(x+1))
-        df = df.reset_index(names='time').pivot(index="time", columns="neuron_name", values=["x", "y", "z", "raw_segmentation_id"])
+        df['raw_neuron_ind_in_list'] = raw_neuron_ind_in_list
+        df['raw_segmentation_id'] = df['raw_neuron_ind_in_list'] + 1
+        df['neuron_name'] = df['raw_segmentation_id'].apply(lambda x: int2name_neuron(x))
+        df = df.reset_index(names='time').pivot(index="time", columns="neuron_name", values=["x", "y", "z", "raw_segmentation_id", "raw_neuron_ind_in_list"])
 
         # Reorder to (neuron_name, z/x/y)
         df = df.swaplevel(0, 1, axis=1).sort_index(axis=1, level=0)
