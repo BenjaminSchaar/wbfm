@@ -227,9 +227,7 @@ def add_metadata_to_df_raw_ind(df_raw_ind, segmentation_metadata: DetectedNeuron
     """
     Given a dataframe with only the raw_ind_in_list, add metadata to it
 
-    Expect that df_raw_ind has a multiindex column, with the top level as neuron names and the
-
-    Final column names should be:
+    Expect that df_raw_ind has a multiindex column, with the top level as neuron names and the final column names should be:
         brightness_red 	likelihood 	raw_neuron_ind_in_list 	raw_segmentation_id 	volume 	x 	y 	z 	raw_tracklet_id
 
     Parameters
@@ -277,3 +275,54 @@ def add_metadata_to_df_raw_ind(df_raw_ind, segmentation_metadata: DetectedNeuron
     # Now, convert to a dataframe
     new_df = pd.DataFrame(new_df_values)
     return new_df
+
+
+def combine_metadata_from_two_dataframes(df_raw_ind, df_with_metadata, column_to_match='raw_neuron_ind_in_list', raise_error=True):
+    """
+    Given a dataframe with only the raw_ind_in_list, add metadata to it
+
+    Expect that df_raw_ind has a multiindex column, with the top level as neuron names and the final column names should be at least:
+        raw_neuron_ind_in_list 	raw_segmentation_id  	x 	y 	z
+
+    Parameters
+    ----------
+    df_raw_ind
+    segmentation_metadata
+
+    Returns
+    -------
+
+    """
+    # Prepare result DataFrame (copy to avoid modifying input)
+    dict_result = {}
+
+    # Get unique neuron names from both frames
+    neurons_raw = df_raw_ind.columns.get_level_values(0).unique()
+
+    # Loop 1: over each time point (index)
+    for t in df_raw_ind.index:
+        # Loop 2: over each neuron in df_raw_ind
+        for neuron in neurons_raw:
+            this_row = df_raw_ind.loc[t, neuron]
+
+            # Skip if column_to_match missing
+            if column_to_match not in this_row.index:
+                continue
+
+            match_value = this_row[column_to_match]
+
+            # Find matching row in df_with_metadata for this neuron, across top-level objects
+            _df = df_with_metadata.loc[t, (slice(None), column_to_match)]
+            original_match = _df.index.get_level_values(0)[(_df == match_value).values]
+            original_row = df_with_metadata.loc[t, original_match]
+
+            # Generate new column names and values
+            for col in this_row.index:
+                if col == column_to_match:
+                    continue
+                dict_result[(neuron, col)] = this_row[col]
+            for col in  original_row.index:
+                dict_result[(neuron, col)] = original_row[col]
+
+    df_result = pd.DataFrame(dict_result)
+    return df_result
