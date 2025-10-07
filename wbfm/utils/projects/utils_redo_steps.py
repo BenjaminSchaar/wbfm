@@ -249,7 +249,7 @@ def add_metadata_to_df_raw_ind(df_raw_ind, segmentation_metadata: DetectedNeuron
 
     # Iterate over each column (slightly slow but better than messing with column names and indices)
     top_level_names = df_raw_ind.columns.get_level_values(0).unique()
-    for neuron_name in tqdm(top_level_names):
+    for neuron_name in tqdm(top_level_names, leave=False):
         this_col = df_raw_ind.loc[:, (neuron_name, 'raw_neuron_ind_in_list')]
         try:
             likelihood = df_raw_ind.loc[:, (neuron_name, 'likelihood')]
@@ -295,21 +295,28 @@ def combine_metadata_from_two_dataframes(df_raw_ind, df_with_metadata, column_to
 
     """
     # Prepare result DataFrame (copy to avoid modifying input)
-    dict_result = defaultdict(lambda : np.zeros(df_raw_ind.shape[0]))
+    def make_new_col():
+        col = np.zeros(df_raw_ind.shape[0])
+        col[:] = np.nan
+        return col
+    dict_result = defaultdict(make_new_col)
 
     # Get unique neuron names from both frames
     neurons_raw = df_raw_ind.columns.get_level_values(0).unique()
 
-    # Loop 1: over each time point (index)
-    for t in df_raw_ind.index:
-        # Loop 2: over each neuron in df_raw_ind
-        for neuron in neurons_raw:
-            this_row = df_raw_ind.loc[t, neuron]
-
-            # Skip if column_to_match missing
-            if column_to_match not in this_row.index:
+    # Loop 1: over each neuron in df_raw_ind
+    for neuron in tqdm(neurons_raw, desc="Combining metadata per neuron"):
+        if column_to_match not in df_raw_ind[neuron].columns:
+            if raise_error:
+                raise ValueError(f"Column '{column_to_match}' not found in neuron '{neuron}' of df_raw_ind")
+            else:
+                print(f"Warning: Column '{column_to_match}' not found in neuron '{neuron}' of df_raw_ind, skipping")
                 continue
+        nonnan_times = df_raw_ind.loc[:, (neuron, column_to_match)].dropna().index
 
+        for t in tqdm(nonnan_times, leave=False, desc=f"Processing times for neuron {neuron}"):
+        # Loop 2: over each non-nan time point in df_raw_ind
+            this_row = df_raw_ind.loc[t, neuron]
             match_value = this_row[column_to_match]
 
             # Find matching row in df_with_metadata for this neuron, across top-level objects
