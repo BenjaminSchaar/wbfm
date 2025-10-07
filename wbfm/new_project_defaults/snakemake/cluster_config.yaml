@@ -66,11 +66,14 @@ tracking:
     constraint: "l40s|a30|t4|v100|l4"
 
 barlow_tracking:
+    cpus_per_task: 32
+
+barlow_embedding:
     cpus_per_task: 16
     gres: gpu:1
     constraint: "l40s|a30|t4|v100|l4"
 
-alt_barlow_tracking: 
+alt_barlow_embedding: 
     cpus_per_task: 16
     gres: gpu:1
     constraint: "l40s|a30|t4|v100|l4"

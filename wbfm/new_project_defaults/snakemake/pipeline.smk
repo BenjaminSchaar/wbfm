@@ -92,10 +92,10 @@ def _choose_tracker():
 if project_data.check_segmentation():
     print("Detected completed segmentation; allowing rules that skip segmentation")
     ruleorder: alt_build_frame_objects > build_frame_objects
-    ruleorder: alt_barlow_tracking > barlow_tracking
+    ruleorder: alt_barlow_embedding > barlow_embedding
 else:
     ruleorder: build_frame_objects > alt_build_frame_objects
-    ruleorder: barlow_tracking > alt_barlow_tracking
+    ruleorder: barlow_embedding > alt_barlow_embedding
 
 if project_data.check_preprocessed_data():
     print("Detected completed preprocessing; allowing rules that skip preprocessing")
@@ -241,10 +241,22 @@ rule combine_tracking_and_tracklets:
         _run_helper("3b-match_tracklets_and_tracks_using_neuron_initialization", str(input.cfg))
 
 # Alternate tracker that doesn't need tracklets
-rule barlow_tracking:
+
+rule barlow_embedding:
     input:
         cfg=project_cfg_fname,
         metadata=os.path.join(project_dir, "1-segmentation/metadata.pickle"),
+    output:
+        embedding=os.path.join(project_dir, "3-tracking/barlow_tracker/worm_tracker_barlow.pickle"),
+    threads: 48
+    run:
+        _run_helper("pipeline_alternate.3-embed_using_barlow", str(input.cfg),
+            model_fname=config["barlow_model_path"])
+
+rule barlow_tracking:
+    input:
+        cfg=project_cfg_fname,
+        embedding=os.path.join(project_dir, "3-tracking/barlow_tracker/worm_tracker_barlow.pickle"),
     output:
         tracks_global=os.path.join(project_dir, "3-tracking/barlow_tracker/df_barlow_tracks.h5"),
     threads: 48
@@ -253,13 +265,13 @@ rule barlow_tracking:
             model_fname=config["barlow_model_path"])
 
 # No input version, e.g. from nwb or remote segmentation
-rule alt_barlow_tracking:
+rule alt_barlow_embedding:
     input: cfg=project_cfg_fname
     output:
-        tracks_global=os.path.join(project_dir, "3-tracking/barlow_tracker/df_barlow_tracks.h5"),
+        embedding=os.path.join(project_dir, "3-tracking/barlow_tracker/worm_tracker_barlow.pickle"),
     threads: 48
     run:
-        _run_helper("pipeline_alternate.3-track_using_barlow", str(input.cfg),
+        _run_helper("pipeline_alternate.3-embed_using_barlow", str(input.cfg),
             model_fname=config["barlow_model_path"])
 
 #
