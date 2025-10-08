@@ -1,5 +1,6 @@
 import argparse
 from ast import arg
+from glob import glob
 import sys
 import os
 from pathlib import Path
@@ -77,7 +78,21 @@ class Project:
         except Exception as e:
             print(f"Error loading project from {project_path}: {e}")
             return None
-    
+        
+    @staticmethod
+    def find_newest_slurm_log(log_dir: str) -> Optional[str]:
+        """
+        Find the newest slurm_*.out file in the given directory.
+        Returns full path or None if no matching files exist.
+        """
+        pattern = os.path.join(log_dir, "slurm-*.out")
+        files = glob(pattern)
+        if not files:
+            return None
+        # Sort by modification time, newest first
+        files.sort(key=os.path.getmtime, reverse=True)
+        return files[0]
+
     def update_status(self):
         """Update the project status by querying Snakemake"""
         snakefile = self.path / "snakemake" / "pipeline.smk"
@@ -90,13 +105,17 @@ class Project:
         running = self._check_if_running(snakefile)
         
         # Get pipeline statistics
-        stats = self._get_snakemake_stats(snakefile)
+        logfile = self.find_newest_slurm_log(self.path / "snakemake")
+        if logfile is None:
+            stats = self._get_snakemake_stats_via_dryrun(snakefile)
+        else:
+            stats = self._get_snakemake_stats(logfile)
         stats.running = running
         
         self.stats = stats
 
-        print("="*100)
-        print(f"Updated status for project {self.name} at {self.path}")
+        # print("="*100)
+        # print(f"Updated status for project {self.name} at {self.path}")
     
     def _check_if_running(self, snakefile: Path) -> bool:
         """Check if Snakemake jobs are currently running using the Python API."""
@@ -129,7 +148,71 @@ class Project:
         #     # If we can't check, err on the side of not running
         #     return False
 
-    def _get_snakemake_stats(self, 
+    @staticmethod
+    def _get_snakemake_stats(log_path: str) -> SnakemakeStats:
+        stats = SnakemakeStats()
+        in_job_table = False
+        counts = {}
+        
+        finished_jobs = set()
+        failed_jobs = set()
+
+        with open(log_path, "r") as f:
+            for line in f:
+                line = line.strip()
+
+                # ---- Job stats table ----
+                if line.startswith("Job stats:"):
+                    in_job_table = True
+                    continue
+                if in_job_table:
+                    if line.startswith("----------------"):
+                        continue
+                    if not line:
+                        in_job_table = False
+                        continue
+                    # parse lines like: rule_name <spaces> count
+                    m = re.match(r"(\S+)\s+(\d+)$", line)
+                    if m:
+                        rule, count = m.groups()
+                        if rule.lower() != "total":
+                            counts[rule] = int(count)
+                        else:
+                            stats.total_rules = int(count)
+                    continue
+
+                # ---- Finished jobs ----
+                if re.search(r"Finished job \d+\.", line):
+                    m = re.search(r"Finished job (\d+)\.", line)
+                    if m:
+                        finished_jobs.add(m.group(1))
+                    continue
+
+                # ---- Failed jobs ----
+                if line.startswith("ERROR:snakemake.logging:Error in rule"):
+                    # extract rule name
+                    m = re.search(r"Error in rule (\S+):", line)
+                    if m:
+                        failed_jobs.add(m.group(1))
+                    else:
+                        failed_jobs.add("unknown")
+                    continue
+
+        # Sometimes jobs failed but then were re-run and finished
+        failed_jobs.difference_update(finished_jobs)
+
+        stats.completed_rules = len(finished_jobs)
+        stats.failed_rules = len(failed_jobs)
+        stats.pending_rules = stats.total_rules - stats.completed_rules - stats.failed_rules
+
+        # print("="*100)
+        # print(counts)
+        # print(finished_jobs)
+        # print(failed_jobs)
+
+        return stats#, counts
+
+    def _get_snakemake_stats_via_dryrun(self, 
         snakefile: str,
     ) -> SnakemakeStats:
         """Run a dry-run and parse the output to estimate workflow progress."""
@@ -491,7 +574,7 @@ class ProjectDetailsDialog(QDialog):
 class ProjectStatusGUI(QMainWindow):
     """Main GUI window for project status monitoring"""
 
-    def __init__(self, target_folder: Optional[str] = None):
+    def __init__(self, target_folder: Optional[str] = None, auto_refresh=False):
         super().__init__()
         self.projects: List[Project] = []
         self.root_path: Optional[Path] = Path(target_folder) if target_folder else None
@@ -500,7 +583,8 @@ class ProjectStatusGUI(QMainWindow):
         self.update_thread: Optional[StatusUpdateThread] = None
         
         self.setup_ui()
-        self.setup_timer()
+        if auto_refresh:
+            self.setup_timer()
 
         if self.root_path is not None:
             self.update_path_label(self.root_path)
