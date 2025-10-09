@@ -556,7 +556,7 @@ class ProjectDetailsDialog(QDialog):
 class ProjectStatusGUI(QMainWindow):
     """Main GUI window for project status monitoring"""
 
-    def __init__(self, target_folder: Optional[str] = None, auto_refresh=False):
+    def __init__(self, target_folder: Optional[str] = None, auto_refresh=True):
         super().__init__()
         self.projects: List[Project] = []
         self.root_path: Optional[Path] = Path(target_folder) if target_folder else None
