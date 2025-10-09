@@ -152,6 +152,7 @@ class Project:
         job_id2name = {}
         job_id_count = 0
         
+        submitted_jobs = set()
         finished_jobs = set()
         failed_jobs = set()
 
@@ -188,6 +189,13 @@ class Project:
                         finished_jobs.add(job_id2name[int(m.group(1))])
                     continue
 
+                # ---- Submitted jobs ----
+                if re.search(r"Submitted job \d+\b", line):
+                    m = re.search(r"Submitted job (\d+)\b", line)
+                    if m:
+                        submitted_jobs.add(job_id2name[int(m.group(1))])
+                    continue
+
                 # ---- Failed jobs ----
                 if line.startswith("ERROR:snakemake.logging:Error in rule"):
                     # extract rule name
@@ -200,10 +208,11 @@ class Project:
 
         # Sometimes jobs failed but then were re-run and finished
         failed_jobs.difference_update(finished_jobs)
+        submitted_jobs.difference_update(finished_jobs)
 
         stats.completed_rules = len(finished_jobs)
         stats.failed_rules = len(failed_jobs)
-        stats.pending_rules = stats.total_rules - stats.completed_rules - stats.failed_rules
+        stats.pending_rules = len(submitted_jobs)
 
         stats.completed_rule_names = finished_jobs
         stats.failed_rule_names = failed_jobs
@@ -283,74 +292,6 @@ class Project:
                 counts[rule] = int(count)
         return counts
 
-    # def _get_snakemake_stats(self, snakefile: Path) -> SnakemakeStats:
-    #     """Get pipeline statistics from Snakemake using the Python API and --stats (JSON)."""
-    #     stats = SnakemakeStats()
-
-    #     try:
-    #         # Use a temporary file for the stats output
-    #         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp_stats:
-    #             stats_path = tmp_stats.name
-
-    #         # Run snakemake with --stats (JSON output)
-    #         result = subprocess.run(
-    #             [
-    #                 "snakemake",
-    #                 "--snakefile", str(snakefile),
-    #                 "--stats", stats_path,
-    #                 "--rerun-incomplete",
-    #                 "--dry-run",
-    #                 self.target_rule
-    #             ],
-    #             cwd=str(self.path),
-    #             capture_output=True,
-    #             text=True,
-    #             timeout=60
-    #         )
-
-    #         if result.returncode != 0:
-    #             if "Nothing to be done" in result.stderr or "Nothing to be done" in result.stdout:
-    #                 stats.completed_rules = 1
-    #                 stats.total_rules = 1
-    #                 return stats
-    #             stats.error_message = result.stderr[:200] if result.stderr else "Unknown error"
-    #             return stats
-
-    #         # Parse the stats JSON file
-    #         if os.path.exists(stats_path):
-    #             with open(stats_path, "r") as f:
-    #                 stats_json = json.load(f)
-    #             # stats_json keys: "rules", "files", "resources", "rule_order", etc.
-    #             rules = stats_json.get("rules", {})
-    #             stats.total_rules = len(rules)
-    #             for rule, rule_stats in rules.items():
-    #                 # rule_stats: {"job_count": int, "completed": int, "failed": int, ...}
-    #                 completed = rule_stats.get("completed", 0)
-    #                 failed = rule_stats.get("failed", 0)
-    #                 total = rule_stats.get("job_count", 0)
-    #                 stats.completed_rules += completed
-    #                 stats.failed_rules += failed
-    #                 stats.pending_rules += max(0, total - completed - failed)
-    #         else:
-    #             stats.error_message = "Stats file not created by Snakemake"
-    #             return stats
-
-    #         return stats
-
-    #     except subprocess.TimeoutExpired:
-    #         stats.error_message = "Snakemake command timed out"
-    #         return stats
-    #     except Exception as e:
-    #         stats.error_message = str(e)[:200]
-    #         return stats
-    #     finally:
-    #         # Clean up the temporary stats file
-    #         try:
-    #             if os.path.exists(stats_path):
-    #                 os.remove(stats_path)
-    #         except Exception:
-    #             pass
-    
     def _get_stats_from_list(self, snakefile: Path) -> SnakemakeStats:
         """Get statistics using --list and --list-input-changes"""
         stats = SnakemakeStats()
