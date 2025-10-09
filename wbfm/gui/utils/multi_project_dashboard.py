@@ -119,34 +119,16 @@ class Project:
     
     def _check_if_running(self, snakefile: Path) -> bool:
         """Check if Snakemake jobs are currently running using the Python API."""
-        return False
-        # try:
-        #     # Check for lock file which indicates running workflow
-        #     lockfile = self.path / ".snakemake" / "locks"
-        #     if lockfile.exists() and any(lockfile.iterdir()):
-        #         return True
-
-        #     # Run a dry-run using the API (returns True if successful)
-        #     # We use dryrun=True, quiet=True, and keep going on error
-        #     result = snakemake_api(
-        #         snakefile=str(snakefile),
-        #         workdir=str(self.path / "snakemake"),
-        #         targets=[self.target_rule],
-        #         dryrun=True,
-        #         ignore_incomplete=True,
-        #         quiet=True,
-        #         printshellcmds=False,
-        #         keepgoing=True,
-        #         cores=1,
-        #     )
-        #     # If dry-run succeeds, assume not running
-        #     return False
-
-        # except Exception as e:
-        #     print(self.path)
-        #     print(f"Error checking if snakefile {snakefile} is running: {e}")
-        #     # If we can't check, err on the side of not running
-        #     return False
+        # Look at the most recent file update; if it was within the last 5 minutes, assume running
+        snakemake_folder = self.path / "snakemake"
+        
+        try:
+            latest_mtime = max(f.stat().st_mtime for f in Path(snakemake_folder).iterdir() if f.is_file())
+            if (datetime.now().timestamp() - latest_mtime) < 300:
+                return True
+        except ValueError:
+            # No slurm files found
+            return False
 
     @staticmethod
     def _get_snakemake_stats(log_path: str) -> SnakemakeStats:
