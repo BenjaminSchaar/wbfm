@@ -6,6 +6,7 @@ function usage {
     echo "  -s: snakemake rule to run until, i.e. target rule (default: traces_and_behavior; other options: traces, behavior)"
     echo "  -R: snakemake rule to restart from (default: None)"
     echo "  -n: dry run (default: false)"
+    echo "  -f: force only one rule (default: false)"
     echo "  -c: do NOT use cluster (default: false, i.e. run on cluster)"
     echo "  -h: display help (this message)"
     exit 1
@@ -21,13 +22,15 @@ DRYRUN=""
 USE_CLUSTER="True"
 RULE="traces_and_behavior"
 RESTART_RULE=""
+FORCE_ONLY_ONE_RULE="False"
 
-while getopts :s:R:nch flag
+while getopts :s:R:nfch flag
 do
     case "${flag}" in
         s) RULE=${OPTARG};;
         R) RESTART_RULE=${OPTARG};;
         n) DRYRUN="True";;
+        f) FORCE_ONLY_ONE_RULE="True";;
         c) USE_CLUSTER="";;
         h) usage;;
         *) echo "Unknown flag"; usage; exit 1;;
@@ -39,6 +42,9 @@ SBATCH_OPT="sbatch -t {cluster.time} --cpus-per-task {cluster.cpus_per_task} --m
 SNAKEMAKE_OPT="-s pipeline.smk --latency-wait 60 --cores 56 --retries 2"
 if [ -n "$RESTART_RULE" ]; then
     SNAKEMAKE_OPT="$SNAKEMAKE_OPT -R $RESTART_RULE"
+fi
+if [ "$FORCE_ONLY_ONE_RULE" = "True" ]; then
+    SNAKEMAKE_OPT="$SNAKEMAKE_OPT --allowed-rules $RULE --force"
 fi
 NUM_JOBS_TO_SUBMIT=8
 

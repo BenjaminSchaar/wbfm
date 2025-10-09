@@ -10,6 +10,7 @@ function usage {
   echo "Usage: $0 [-t folder_of_projects] [-n] [-d] [-s rule] [-h] [-R restart_rule]"
   echo "  -t: folder of projects (required)"
   echo "  -n: dry run of this script (default: false)"
+  echo "  -f: force only one rule (default: false)"
   echo "  -c: run commands locally (default: false, i.e. use sbatch)"
   echo "  -d: dry run of snakemake (default: false)"
   echo "  -s: snakemake rule to run (default: traces_and_behavior; other options: traces, behavior)"
@@ -25,13 +26,14 @@ RESTART_RULE=""
 is_snakemake_dry_run=""
 
 # Get all user flags
-while getopts t:s:R:ncdh flag
+while getopts t:s:R:ncfdh flag
 do
     case "${flag}" in
         t) folder_of_projects=${OPTARG};;
         n) is_dry_run="True";;
         d) is_snakemake_dry_run="True";;
-        c) RUNME_ARGS="-c";;
+        f) RUNME_ARGS="$RUNME_ARGS -f";;
+        c) RUNME_ARGS="$RUNME_ARGS -c";;
         s) RULE=${OPTARG};;
         R) RESTART_RULE=${OPTARG};;
         h) usage;;
@@ -91,7 +93,7 @@ loop_through_and_analyze_folder() {
                         echo "Running job with name: $JOB_NAME"
 
                         # If the RUNME_ARGS contains -c, then run the command directly without sbatch
-                        if [ "$RUNME_ARGS" = "-c" ]; then
+                        if [[ "$RUNME_ARGS" == *"-c"* ]]; then
                             # Do not run the conda setup command, which is not needed for local runs
                             echo "Running: $snakemake_cmd"
                             bash $snakemake_cmd &
