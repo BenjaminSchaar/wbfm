@@ -1,5 +1,6 @@
 import argparse
 from ast import arg
+from collections import defaultdict
 from glob import glob
 import sys
 import os
@@ -149,7 +150,7 @@ class Project:
         stats = SnakemakeStats()
         in_job_table = False
         counts = {}
-        job_id2name = {}
+        job_id2name = defaultdict(lambda : "Unknown Rule")
         job_id_count = 0
         
         submitted_jobs = set()
@@ -209,6 +210,7 @@ class Project:
                 # ---- All jobs were finished before this log file ----
                 if line.startswith("Nothing to be done"):
                     finished_jobs.add("Nothing to be done")
+                    stats.total_rules = 1  # In this case the table won't be printed, so we should set it manually
                     break  # No need to search more
 
         # Sometimes jobs failed but then were re-run and finished
@@ -937,10 +939,10 @@ class ProjectStatusGUI(QMainWindow):
     
     def open_project_folder(self, project: Project):
         """Open project folder in file explorer"""
-        path = project.path
+        path = os.path.abspath(str(project.path))
         
         if sys.platform == "win32":
-            os.startfile(path)
+            subprocess.Popen(["explorer", path], shell=True)
         elif sys.platform == "darwin":
             subprocess.run(["open", path])
         else:
