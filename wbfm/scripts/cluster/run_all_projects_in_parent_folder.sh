@@ -101,7 +101,7 @@ loop_through_and_analyze_folder() {
                             full_cmd="$conda_setup_cmd; bash $snakemake_cmd"
                             sbatch --time 5-00:00:00 \
                                 --cpus-per-task 1 \
-                                --mem 8G \
+                                --mem 24G \
                                 --mail-type=FAIL,TIME_LIMIT,END \
                                 --wrap="$full_cmd" \
                                 --job-name="$JOB_NAME"
