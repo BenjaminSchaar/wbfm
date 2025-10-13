@@ -55,6 +55,9 @@ def calculate_frame_objects_full_video(video_data, frame_range, video_fname,
         dataset = NeuronImageWithGTDataset(project_data, num_frames, target_sz, include_untracked=True)
         encoder_opt['dataset'] = dataset
 
+    # Make sure the preprocessing is ready (if prior steps are from nwb it may not be)
+    if not preprocessing_settings.alpha_is_ready:
+        preprocessing_settings.calculate_alpha_from_data(video_data)
 
     def _build_frame(frame_ind: int) -> ReferenceFrame:
         metadata = {'frame_ind': frame_ind,

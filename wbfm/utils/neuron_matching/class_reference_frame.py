@@ -44,7 +44,7 @@ class ReferenceFrame:
     options_2d_encoder: dict = None
 
     _all_features_non_neurons: np.ndarray = None
-    _raw_data: np.ndarray = None
+    _raw_data: np.ndarray = None  # Note that this is actually preprocessed
 
     def get_default_base_2d_encoder(self):
         self.alternate_2d_encoder = self.get_default_base_2d_encoder
