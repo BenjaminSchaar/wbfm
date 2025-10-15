@@ -122,7 +122,8 @@ class Project:
         # Get pipeline statistics
         logfile = self.find_newest_slurm_log(self.path / "snakemake")
         if logfile is None:
-            stats = self._get_snakemake_stats_via_dryrun(snakefile)
+            stats = SnakemakeStats(error_message="Log file not found")
+            # stats = self._get_snakemake_stats_via_dryrun(snakefile)
         else:
             stats = self._get_snakemake_stats(logfile)
         stats.running = running
