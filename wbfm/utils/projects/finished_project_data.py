@@ -2604,7 +2604,7 @@ def load_all_projects_from_list(list_of_project_folders: List[Union[str, Path]],
         for file in Path(_folder).iterdir():
             if "project_config.yaml" in file.name and not file.name.startswith('.'):
                 if not only_load_paths:
-                    return ProjectData.load_final_project_data_from_config(file, **kwargs)
+                    return ProjectData.load_final_project_data(file, **kwargs)
                 else:
                     return file
         return None
