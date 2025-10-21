@@ -1107,6 +1107,8 @@ def make_project_like(project_path: str, target_directory: str,
     old_project_fnames = list(Path(old_project_dir).rglob('**/*'))
     if verbose >= 3:
         print(f"Found files in the old project (to copy): {old_project_fnames}")
+    if len(old_project_fnames) == 0:
+        logging.warning("Found no files to copy; perhaps the old project is incorrectly formatted")
 
     # Check each initial project fname, and if it is in the initial set, copy it
     for fname in old_project_fnames:
