@@ -504,6 +504,14 @@ class ProjectData:
             # Loads the raw data, which may be slow
             num_frames = self.project_config.get_num_frames_robust()
         return num_frames
+    
+
+    def num_frames_minus_tracking_failures(self, **kwargs):
+        tracking_failures = self.estimate_tracking_failures_from_project(**kwargs)
+        if tracking_failures is not None:
+            return self.num_frames - len(tracking_failures)
+        else:
+            return self.num_frames
 
     def custom_frame_indices(self) -> list:
         """For overriding the normal iterator over frames, for skipping problems etc."""
@@ -2131,7 +2139,7 @@ class ProjectData:
         """
         try:
             all_vol = [self.segmentation_metadata.get_all_volumes(i) for i in range(self.num_frames)]
-        except AttributeError as e:
+        except (AttributeError, FileNotFoundError) as e:
             self.logger.warning(f"Error with reading segmentation, may be due to python version: {e}")
             return None
         all_num_objs = np.array(list(map(len, all_vol)))
