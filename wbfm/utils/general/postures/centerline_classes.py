@@ -192,8 +192,12 @@ class WormFullVideoPosture:
     def num_high_res_frames(self):
         try:
             return len(self._raw_stage_position)
-        except NoBehaviorAnnotationsError:
-            return len(self._raw_centerlineX)
+        except NoBehaviorAnnotationsError as e:
+            if self.has_full_kymograph and self._raw_centerlineX is not None:
+                return len(self._raw_centerlineX)
+            else:
+                raise e
+                
 
     def _pad_if_not_long_enough(self, df):
         # Need to properly continue the index
@@ -1998,7 +2002,7 @@ class WormFullVideoPosture:
             else:
                 bh = self.beh_annotation(**beh_annotation_opts)
                 shade_using_behavior(bh, **kwargs)
-        except (NoBehaviorAnnotationsError, AttributeError):
+        except (NoBehaviorAnnotationsError, AttributeError, TypeError):
             pass
 
     @property
