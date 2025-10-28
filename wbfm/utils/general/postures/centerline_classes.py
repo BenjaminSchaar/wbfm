@@ -245,7 +245,8 @@ class WormFullVideoPosture:
     def template_vector(self, fluorescence_fps=False, **kwargs) -> pd.Series:
         """Defines the expected length for the behavioral vectors, with all nan"""
         df = pd.Series(index=range(self.num_high_res_frames))
-        df = self._validate_and_downsample(df, fluorescence_fps, force_downsampling=fluorescence_fps,
+        force_downsampling = kwargs.pop('force_downsampling', fluorescence_fps)
+        df = self._validate_and_downsample(df, fluorescence_fps, force_downsampling=force_downsampling,
                                            **kwargs)
         return df
 
@@ -2241,11 +2242,14 @@ def get_manual_behavior_annotation_fname(cfg: ModularProjectConfig, make_absolut
     """
 
     # Initial checks are all in project local folders
-    is_likely_manually_annotated = False
     behavior_cfg = cfg.get_behavior_config()
+    is_likely_manually_annotated = behavior_cfg.config.get('manual_beh_annotation_already_converted_to_fluorescence_fps', False)
+    
     try:
         behavior_fname = behavior_cfg.config.get('manual_behavior_annotation', None)
         abs_behavior_fname = behavior_cfg.resolve_relative_path(behavior_fname)
+        if verbose >= 1:
+            print(f"Checking for manual behavior annotation in config file: {abs_behavior_fname}")
         if behavior_fname is not None:
             if Path(abs_behavior_fname).exists():
                 # Unclear if it is manually annotated or not
@@ -2271,6 +2275,8 @@ def get_manual_behavior_annotation_fname(cfg: ModularProjectConfig, make_absolut
                     if verbose >= 1:
                         print(f"Found relative path behavior annotation in config file: {abs_behavior_fname}")
     except FileNotFoundError:
+        if verbose >= 1:
+            print(f"No behavior annotation found in config file: {behavior_cfg}")
         # Old style project
         behavior_fname = None
 
