@@ -2173,10 +2173,21 @@ def napari_behavior_explorer_from_config(project_path, fluorescence_fps=True, DE
     project_data = ProjectData.load_final_project_data_from_config(project_path)
 
     # Load specific data
-    df_kymo = project_data.worm_posture_class.curvature(fluorescence_fps=fluorescence_fps)
+    try:
+        df_kymo = project_data.worm_posture_class.curvature(fluorescence_fps=fluorescence_fps)
+    except NoBehaviorAnnotationsError as e:
+        print("No behavior annotations were found; showing only the video")
+        df_kymo = None
+        
     video_fname = project_data.worm_posture_class.behavior_video_btf_fname(raw=True)
-    store = tifffile.imread(video_fname, aszarr=True)
-    video_zarr = zarr.open(store, mode='r')
+    try:
+        # store = tifffile.imread(video_fname, aszarr=True)
+        # video_zarr = zarr.open(store, mode='r')
+        video_zarr = project_data.worm_posture_class.raw_behavior_video
+    except ValueError:
+        print("Failed to open video as tiff; trying zarr format")
+        print(video_fname)
+        return
     # Subset video to be the same fps as the fluorescence
     if fluorescence_fps:
         video_zarr = video_zarr[::project_data.physical_unit_conversion.frames_per_volume, :, :]
@@ -2197,9 +2208,10 @@ def napari_behavior_explorer_from_config(project_path, fluorescence_fps=True, DE
     mpl_widget = PlotQWidget()
     static_ax = mpl_widget.canvas.fig.subplots()
     # Get vmin and vmax dynamically
-    vmin = np.nanquantile(df_kymo.values, 0.01)
-    vmax = np.nanquantile(df_kymo.values, 0.99)
-    static_ax.imshow(df_kymo.T, aspect=aspect, vmin=vmin, vmax=vmax, cmap='RdBu')
+    if df_kymo is not None:
+        vmin = np.nanquantile(df_kymo.values, 0.01)
+        vmax = np.nanquantile(df_kymo.values, 0.99)
+        static_ax.imshow(df_kymo.T, aspect=aspect, vmin=vmin, vmax=vmax, cmap='RdBu')
     viewer.window.add_dock_widget(mpl_widget, area='bottom')
 
     # Callback: click on the kymograph to change the viewer time
