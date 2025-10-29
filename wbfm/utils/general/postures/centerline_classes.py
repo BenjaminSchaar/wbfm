@@ -4,7 +4,7 @@ import logging
 import math
 import os
 from pathlib import Path
-from typing import Union, Optional, List, Tuple, Dict
+from typing import Type, Union, Optional, List, Tuple, Dict
 import dask.array as da
 import numpy as np
 import pandas as pd
@@ -192,8 +192,12 @@ class WormFullVideoPosture:
     def num_high_res_frames(self):
         try:
             return len(self._raw_stage_position)
-        except NoBehaviorAnnotationsError:
-            return len(self._raw_centerlineX)
+        except NoBehaviorAnnotationsError as e:
+            if self.has_full_kymograph and self._raw_centerlineX is not None:
+                return len(self._raw_centerlineX)
+            else:
+                raise e
+                
 
     def _pad_if_not_long_enough(self, df):
         # Need to properly continue the index
@@ -1029,13 +1033,16 @@ class WormFullVideoPosture:
             beh_vec = beh_vec.apply(BehaviorCodes.convert_to_simple_states)
         return beh_vec
 
-    def all_found_behaviors(self, convert_to_strings=False, **kwargs):
-        beh = self.beh_annotation(**kwargs)
-        beh_unique = beh.unique()
-        if convert_to_strings:
-            beh_unique = [behavior.individual_names for behavior in beh_unique]
-            # Flatten the nested list, and only keep unique values
-            beh_unique = list({item for sublist in beh_unique for item in sublist})
+    def all_found_behaviors(self, convert_to_strings=False, **kwargs) -> list:
+        try:
+            beh = self.beh_annotation(**kwargs)
+            beh_unique = beh.unique()
+            if convert_to_strings:
+                beh_unique = [behavior.individual_names for behavior in beh_unique]
+                # Flatten the nested list, and only keep unique values
+                beh_unique = list({item for sublist in beh_unique for item in sublist})
+        except (NoBehaviorAnnotationsError, TypeError):
+            beh_unique = []
         return beh_unique
 
     @lru_cache(maxsize=64)
@@ -1996,7 +2003,7 @@ class WormFullVideoPosture:
             else:
                 bh = self.beh_annotation(**beh_annotation_opts)
                 shade_using_behavior(bh, **kwargs)
-        except (NoBehaviorAnnotationsError, AttributeError):
+        except (NoBehaviorAnnotationsError, AttributeError, TypeError):
             pass
 
     @property
