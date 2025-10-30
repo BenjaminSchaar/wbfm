@@ -384,7 +384,7 @@ rule worm_unet:
 
 rule sam2_segment:
     input:
-        avi_path=f"{output_behavior_dir}/raw_stack.avi",  # Output of tiff2avi
+        ndtiff_subfolder = behavior_btf if os.path.exists(behavior_btf) else raw_data_subfolder,
         dlc_csv=f"{output_behavior_dir}/raw_stack_dlc.csv"
     output:
         output_file=_cleanup_helper(f"{output_behavior_dir}/raw_stack_mask.btf"),
@@ -392,61 +392,24 @@ rule sam2_segment:
         column_names=["pharynx"],
         model_path=config["sam2_model"],
         sam2_conda_env_name=config["sam2_conda_env_name"],
-        batch_size=400
+        batch_size=300
     shell:
         """
         # I started getting an error with the xml_catalog_files_libxml2 variable, so check if it is set
         if [ -z "${{xml_catalog_files_libxml2:-}}" ]; then
-            #echo "Warning: xml_catalog_files_libxml2 is not set, setting it to /lisc/app/conda/miniforge3/etc/xml/catalog"
             export xml_catalog_files_libxml2=""
-        fi 
-        
+        fi
+
+        # Enable CuDNN backend for faster attention
+        export TORCH_CUDNN_SDPA_ENABLED=1
+
+        module load cuda-toolkit/12.9.0
+
         # Activate the environment and the correct cuda
         source /lisc/app/conda/miniforge3/bin/activate {params.sam2_conda_env_name}
-        module load cuda-toolkit/12.9.0
-        
-        # Display the temporary directory being used
-        echo "Using temporary directory: $TMPDIR"
 
-        # Copy input files to the temporary directory with verification
-        cp {input.avi_path} $TMPDIR/track.avi
-        while [ ! -f $TMPDIR/track.avi ] || [ ! -s $TMPDIR/track.avi ]; do
-            sleep 1
-            echo "Waiting for avi file to be fully copied..."
-        done
-
-        cp {input.dlc_csv} $TMPDIR/track_dlc.csv
-        while [ ! -f $TMPDIR/track_dlc.csv ] || [ ! -s $TMPDIR/track_dlc.csv ]; do
-            sleep 1
-            echo "Waiting for CSV file to be fully copied..."
-        done
-
-        # Add a small delay to ensure filesystem sync
-        sleep 2
-
-        # Run the script within the temporary directory
-        python -c "from SAM2_snakemake_scripts.sam2_video_processing_from_jpeg_batch_pipeline import main; main(['-video_path', '$TMPDIR/track.avi', '-output_file_path', '$TMPDIR/track_mask.btf', '-DLC_csv_file_path', '$TMPDIR/track_dlc.csv', '-column_names', '{params.column_names}', '-SAM2_path', '{params.model_path}', '--batch_size', '{params.batch_size}', '--device', '${{CUDA_VISIBLE_DEVICES:-0}}'])"
-
-        # Verify output file exists and wait for it to be fully written
-        while [ ! -f $TMPDIR/track_mask.btf ] || [ ! -s $TMPDIR/track_mask.btf ]; do
-            sleep 1
-            echo "Waiting for output file to be fully written..."
-        done
-
-        # Add a small delay before moving
-        sleep 2
-
-        # Move the output file back to the final output path
-        mv $TMPDIR/track_mask.btf {output.output_file}
-
-        # Verify the move completed successfully
-        while [ ! -f {output.output_file} ] || [ ! -s {output.output_file} ]; do
-            sleep 1
-            echo "Waiting for final file move to complete..."
-        done
-
-        # Clean up the temporary directory
-        rm -rf $TMPDIR/*
+        # Run the script directly without temp directory overhead
+        python -c "from SAM2_snakemake_scripts.sam2_video_processing_miscroscope_data_loader import main; main(['-tiff_path', '{input.ndtiff_subfolder}', '-output_file_path', '{output.output_file}', '-DLC_csv_file_path', '{input.dlc_csv}', '-column_names', '{params.column_names}', '-SAM2_path', '{params.model_path}', '--batch_size', '{params.batch_size}', '--device', '${{CUDA_VISIBLE_DEVICES:-0}}'])"
         """
 
 rule binarize:
