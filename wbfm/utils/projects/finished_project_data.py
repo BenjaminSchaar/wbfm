@@ -843,11 +843,11 @@ class ProjectData:
                     obj.logger.warning(f"Expected 1 or 2 channels in CalciumImageSeries, found {dat.shape[-1]}; ignoring extras")
             elif (len(dat.shape) == 5 and dat.shape[-1] == 1) or (len(dat.shape) == 4):
                 # Then only one channel present; set both to be this data
-                obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
-                obj.green_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+                obj.red_data = da.from_array(dat, chunks=chunks).squeeze().transpose((0, 3, 1, 2))
+                obj.green_data = da.from_array(dat, chunks=chunks).squeeze().transpose((0, 3, 1, 2))
 
-                preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
-                preprocessing_settings._raw_green_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+                preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks).squeeze().transpose((0, 3, 1, 2))
+                preprocessing_settings._raw_green_data = da.from_array(dat, chunks=chunks).squeeze().transpose((0, 3, 1, 2))
                 obj.logger.debug("WARNING, only one video channel found; setting both channels as this data")
                 obj.logger.debug(f"Loaded data from NWB file: {obj.red_data.shape}")
 
