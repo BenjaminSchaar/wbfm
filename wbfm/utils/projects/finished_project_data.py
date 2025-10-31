@@ -830,7 +830,7 @@ class ProjectData:
             # Transpose data from TXYZC to TZXY (splitting the channel)
             dat = nwb_obj.acquisition['CalciumImageSeries'].data
             chunks = (1, ) + dat.shape[1:-1] + (1,)
-            if dat.shape[-1] >= 2:
+            if len(dat.shape) == 5 and dat.shape[-1] >= 2:
                 obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
                 obj.green_data = da.from_array(dat, chunks=chunks)[..., 1].transpose((0, 3, 1, 2))
                 obj.logger.debug(f"Loaded red and green data from NWB file: {obj.red_data.shape}")
@@ -841,7 +841,8 @@ class ProjectData:
 
                 if dat.shape[-1] > 2:
                     obj.logger.warning(f"Expected 1 or 2 channels in CalciumImageSeries, found {dat.shape[-1]}; ignoring extras")
-            elif dat.shape[-1] == 1:
+            elif (len(dat.shape) == 5 and dat.shape[-1] == 1) or (len(dat.shape) == 4):
+                # Then only one channel present; set both to be this data
                 obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
                 obj.green_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
 
