@@ -830,7 +830,7 @@ class ProjectData:
             # Transpose data from TXYZC to TZXY (splitting the channel)
             dat = nwb_obj.acquisition['CalciumImageSeries'].data
             chunks = (1, ) + dat.shape[1:-1] + (1,)
-            if dat.shape[-1] >= 2:
+            if len(dat.shape) == 5 and dat.shape[-1] >= 2:
                 obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
                 obj.green_data = da.from_array(dat, chunks=chunks)[..., 1].transpose((0, 3, 1, 2))
                 obj.logger.debug(f"Loaded red and green data from NWB file: {obj.red_data.shape}")
@@ -841,12 +841,13 @@ class ProjectData:
 
                 if dat.shape[-1] > 2:
                     obj.logger.warning(f"Expected 1 or 2 channels in CalciumImageSeries, found {dat.shape[-1]}; ignoring extras")
-            elif dat.shape[-1] == 1:
-                obj.red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
-                obj.green_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+            elif (len(dat.shape) == 5 and dat.shape[-1] == 1) or (len(dat.shape) == 4):
+                # Then only one channel present; set both to be this data
+                obj.red_data = da.from_array(dat, chunks=chunks).squeeze().transpose((0, 3, 1, 2))
+                obj.green_data = da.from_array(dat, chunks=chunks).squeeze().transpose((0, 3, 1, 2))
 
-                preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
-                preprocessing_settings._raw_green_data = da.from_array(dat, chunks=chunks)[..., 0].transpose((0, 3, 1, 2))
+                preprocessing_settings._raw_red_data = da.from_array(dat, chunks=chunks).squeeze().transpose((0, 3, 1, 2))
+                preprocessing_settings._raw_green_data = da.from_array(dat, chunks=chunks).squeeze().transpose((0, 3, 1, 2))
                 obj.logger.debug("WARNING, only one video channel found; setting both channels as this data")
                 obj.logger.debug(f"Loaded data from NWB file: {obj.red_data.shape}")
 
@@ -928,9 +929,11 @@ class ProjectData:
         if 'CalciumImageSeries' in nwb_obj.acquisition:
             p.volumes_per_second = nwb_obj.acquisition['CalciumImageSeries'].rate
             grid_spacing = nwb_obj.acquisition['CalciumImageSeries'].imaging_volume.grid_spacing
-            assert grid_spacing[0] == grid_spacing[1], "Grid should be isotropic in xy"
-            p.zimmer_fluroscence_um_per_pixel_xy = grid_spacing[0]
-            p.zimmer_um_per_pixel_z = grid_spacing[2]
+            if len(grid_spacing) == 3 and not grid_spacing[0] == grid_spacing[1]:
+                logging.error(f"Grid should be isotropic in xy; found {grid_spacing}. Ignoring position 1, so errors in visualization may occur")
+            xy_spacing = grid_spacing[0]
+            p.zimmer_fluroscence_um_per_pixel_xy = xy_spacing
+            p.zimmer_um_per_pixel_z = grid_spacing[-1]
             obj.physical_unit_conversion = p
 
         # Save the raw object
