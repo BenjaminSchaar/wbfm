@@ -390,7 +390,7 @@ def segment_and_save2d(i, i_volume, masks_zarr, opt_postprocessing,
 
 
 def save_volume_using_bbox(all_bounding_boxes, final_masks, i, i_volume, masks_zarr):
-    if all_bounding_boxes is None:
+    if all_bounding_boxes is None and all_bounding_boxes[i_volume] is not None:
         masks_zarr[i, :, :, :] = final_masks
     else:
         bbox = all_bounding_boxes[i_volume]
