@@ -2398,10 +2398,15 @@ class ProjectData:
         return (self.red_data is not None) and (self.green_data is not None)
     
     def check_segmentation(self):
-        return (self.raw_segmentation is not None) and (self.segmentation_metadata is not None)
+        return (self.raw_segmentation is not None) and (self.check_segmentation_metadata())
     
     def check_segmentation_metadata(self):
-        return (self.segmentation_metadata is not None)
+        has_metadata = True
+        try:
+            _ = self.segmentation_metadata.num_frames
+        except FileNotFoundError:
+            has_metadata = False
+        return has_metadata
     
     def check_tracking(self):
         return self.final_tracks is not None
