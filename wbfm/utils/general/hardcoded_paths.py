@@ -56,8 +56,8 @@ def load_hardcoded_neural_network_paths() -> dict:
             config = YAML().load(config_dict_str)
             which_method_worked = "defaults imported from package"
         except FileNotFoundError as e:
-            logging.debug("Could not find config file within package... is the code properly installed?")
-            raise e  # If we are in the zimmer lab and this fails, it's a real error
+            logging.error("Could not find config file within package... is the code properly installed?")
+            # If we are in the zimmer lab and this fails, then it may be installed by normal pip, not editable mode
 
     # If that didn't work, try to create a default config file
     if which_method_worked is None:
@@ -76,6 +76,9 @@ def load_hardcoded_neural_network_paths() -> dict:
                                             f"Please make sure you have permissions there, or create one manually. "
                                             f"Note: either way, this config file will have to be filled out manually.")
 
+    if which_method_worked is None:
+        raise IncompleteConfigFileError("Could not find a valid config file for hardcoded paths. "
+                                        "Tried default location, environment variable, and package defaults.")
     logging.debug(f"Loaded config file from {which_method_worked}")
 
     return config

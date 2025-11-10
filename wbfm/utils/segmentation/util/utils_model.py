@@ -60,7 +60,7 @@ def get_stardist_model(model_name: str = 'students_and_lukas_3d_zarr',
             # folder = Path(r'P:/neurobiology/zimmer/wbfm/TrainedStardist')
             folder = Path(r'Z:/neurobiology/zimmer/wbfm/TrainedStardist')
         else:
-            folder = Path('/lisc/scratch/neurobiology/zimmer/wbfm/TrainedStardist')
+            folder = Path('/lisc/data/scratch/neurobiology/zimmer/wbfm/TrainedStardist')
             folder_local = Path('/home/charles/Current_work/repos/segmentation/segmentation/notebooks/models')
 
     # available models' aliases
