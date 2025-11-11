@@ -21,7 +21,7 @@ def load_hardcoded_neural_network_paths() -> dict:
     Loads everything that might be needed for a new user. Note that the paths are not defined here, but rather in a
     config file, which may be in one of several places.
 
-    Fundamentally tries to read from a config file that is stored in the user's home directory. If that file does not
+    Tries to read from a config file that is stored in the user's home directory. If that file does not
     exist, it will then search for a environment variable that contains the path to the config file. If that does not
     exist, it will then try to create the config file using defaults... but this will be empty and throw an error.
     Specifically, the order is this:
