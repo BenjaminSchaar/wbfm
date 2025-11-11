@@ -19,7 +19,7 @@ def check_exists(abs_path, allow_overwrite):
             raise FileExistsError
 
 
-def resolve_mounted_path_in_current_os(raw_path: str, verbose: int = 0) -> str:
+def resolve_mounted_path_in_current_os(raw_path: str, allow_only_parent_to_exist=True, verbose: int = 0) -> str:
     """
     Removes windows-specific mounted drive names (Y:, D:, etc.) and replaces them with the networked system equivalent
     Assumes that these mounting drives correspond to specific networked locations:
@@ -28,6 +28,15 @@ def resolve_mounted_path_in_current_os(raw_path: str, verbose: int = 0) -> str:
     - S: -> /scratch or /lisc/data/scratch
 
     Does nothing if the path is relative
+
+    Parameters
+    ----------
+    raw_path: str
+        The raw path to resolve
+    allow_only_parent_to_exist: bool
+        If True, then only the parent directory needs to exist for the path to be considered valid (otherwise, the file itself must exist)
+    verbose: int
+        Verbosity level
 
     Note: This is specific to the Zimmer lab, as of Nov 2023
     """
@@ -94,7 +103,7 @@ def resolve_mounted_path_in_current_os(raw_path: str, verbose: int = 0) -> str:
                 if verbose >= 2:
                     print(f"No conversion needed for path {raw_path} on os {os.name}")
 
-            if path and os.path.exists(path):
+            if path and (os.path.exists(path) or (allow_only_parent_to_exist and Path(path).parent.exists())):
                 if verbose >= 1:
                     print(f"Successfully resolved {raw_path} to {path}")
                 break
