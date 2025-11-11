@@ -10,6 +10,7 @@ from sklearn.cross_decomposition import CCA
 import plotly.express as px
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
 from tqdm.auto import tqdm
 
 from wbfm.utils.external.utils_pandas import combine_columns_with_suffix
@@ -171,6 +172,11 @@ class CCAPlotter:
 
     def calc_r_squared(self, use_pca=False, n_components: Union[int, list] = 1, use_behavior=False,
                        DEBUG=False, **kwargs):
+        """
+        Calculate the r-squared of reconstruction using either PCA or CCA
+
+        If use_pca is True and use_behavior is True, then we use the PCA latent space from the neurons to reconstruct the behaviors
+        """
         if isinstance(n_components, list):
             all_r_squared, r_squared_per_row = {}, {}
             for i in n_components:
@@ -185,10 +191,20 @@ class CCAPlotter:
 
         if use_pca:
             # See calc_pca_modes; use the main project class
-            pca_class = self.project_data.calc_pca_modes(n_components=n_components, multiply_by_variance=False,
-                                                         return_pca_object=True, **self.trace_kwargs)
 
-            X_r_recon = pca_class.inverse_transform(pca_class.transform(X.T)).T
+            if use_behavior:
+                # Get the PCA modes from the neuronal activity
+                X_r, _ = self.project_data.calc_pca_modes(n_components=n_components, multiply_by_variance=False, **self.trace_kwargs)
+                # Transform the neuronal PCA modes to behavior space using linear regression
+                reg = LinearRegression().fit(X_r, X)
+                X_r_recon = reg.predict(X_r)
+
+            else:
+                # Just reconstruct the traces
+                pipe = self.project_data.calc_pca_modes(n_components=n_components, multiply_by_variance=False, 
+                                                        return_pca_object=True, **self.trace_kwargs)
+                X_r_recon = pipe.inverse_transform(pipe.fit_transform(X))
+
             # pipe = Pipeline([
             #     ('subtract_mean', StandardScaler(with_mean=True, with_std=False)),
             #     ('pca', PCA(n_components=n_components, whiten=False))

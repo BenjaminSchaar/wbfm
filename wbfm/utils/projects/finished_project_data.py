@@ -1425,7 +1425,7 @@ class ProjectData:
             pca_modes *= pca.explained_variance_
 
         if return_pca_object:
-            return pca
+            return pipe
 
         if flip_pc1_to_have_reversals_high:
             # Calculate the speed, and define the sign of the first PC to be anticorrelated to speed
