@@ -1,16 +1,14 @@
 # This file contains the default values for the snakemake pipeline
-# For historical reasons, it is only the parameters for the behavior pipeline
+# There are two sections: one for analyzing traces, and one for analyzing behavior 
 #
-# NOTE: all hardcoded paths have been moved to the wbfm_config.yaml file
+# NOTE: project-independent hardcoded paths have been moved to the wbfm_config.yaml file
 # See load_hardcoded_neural_network_paths in wbfm/utils/general/hardcoded_paths.py for more details
 
 #
 # FOR ANALYZING TRACES
 #
-use_barlow_tracker: False  # Experimental, possibly much better tracker
+use_barlow_tracker: False  # Better tracker, but not what the wbfm paper used
 
-# Uncomment the relevant one; each was trained on different data
-# Generally within /lisc/data/scratch/neurobiology/zimmer/wbfm/TrainedBarlow
 # Baseline model: (2% agar)
 barlow_model_path: /lisc/data/scratch/neurobiology/zimmer/wbfm/TrainedBarlow/barlow_ZIM2165_Gcamp7b_worm1-2022_11_28_from_search/trial_13/resnet50.pth
 # Fungus:
@@ -19,6 +17,8 @@ barlow_model_path: /lisc/data/scratch/neurobiology/zimmer/wbfm/TrainedBarlow/bar
 #barlow_model_path: /lisc/data/scratch/neurobiology/zimmer/wbfm/TrainedBarlow/hyperparameter_search_neuropal/resnet50.pth
 # 1% agar:
 #barlow_model_path: /lisc/data/scratch/neurobiology/zimmer/wbfm/TrainedBarlow/hyperparameter_search_1percent/resnet50.pth
+
+
 
 
 #

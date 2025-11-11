@@ -41,3 +41,6 @@ def main(_config, _run, _log):
             recalculate_metadata_from_config(project_fname, name_mode='neuron', allow_hybrid_loading=True)
         except MissingAnalysisError:
             _log.warning("Could not recalculate metadata after unpacking NWB file; this may be because segmentation has not yet been run.")
+
+    
+    print(f"Successfully created new project at: {project_fname}")

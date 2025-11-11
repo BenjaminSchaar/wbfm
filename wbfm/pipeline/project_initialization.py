@@ -140,7 +140,7 @@ def build_project_structure_from_nwb_file(config, nwb_file, copy_nwb_file=False)
     """
     This mostly just copies the empty project structure and then copies (or moves) the nwb into it
     """
-    project_fname, project_folder_abs = build_project_structure(config)
+    project_fname, project_folder_abs = build_project_structure(config, basename=str(Path(nwb_file).stem))
 
     # Move or copy the nwb file
     target_nwb_filename_rel = os.path.join('nwb', Path(nwb_file).name)

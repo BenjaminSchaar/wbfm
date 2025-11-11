@@ -13,73 +13,78 @@ This should contain at least raw imaging data, but may also contain segmentation
 
 ## Creating a project
 
-While running, the raw data file will be "unpacked" into a [folder structure](docs/data_folder_organization.md) for easier processing, which can be re-exported as .nwb at any time. 
+While running, the raw data file will be "unpacked" into a [folder structure](docs/data_folder_organization.md) for easier processing, which can be re-exported as .nwb at any time.
+Creating a project will take about 1 minute, and the scripts are:
 
 ```commandline
 cd /PATH_TO_THIS_CODE/wbfm/scripts
-python 0-create_new_project_from_nwb.py with project_dir=PATH_TO_NEW_PROJECT_LOCATION nwb_file=PATH_TO_NWB_FILE
+python 0-create_new_project_from_nwb.py with project_dir=PATH_TO_NEW_PROJECT_LOCATION nwb_file=FULL_PATH_TO_NWB_FILE
 ```
 
 This will create a new project from the nwb file, and unpack any analysis steps that it can find.
+If successful, you will get a message like:
+```
+Successfully created new project at: {project_fname}
+```
 
+By default, the project name is "{basename(nwb_file)}".
 
 ## Main pipeline workflow via snakemake
 
 The analysis steps are organized via snakemake, although they can be run step-by-step, see: [detailed pipeline steps](docs/detailed_pipeline_steps.md). 
 Before anything, the parameters should be double-checked.
-Most do not matter for most people, so I will just highlight the main ones
+Most do not matter for most people, so I will just highlight the main ones.
+
+Note that these yaml files are project-specific; in order to change project-wide or default parameters, see the [FAQ](docs/faq.md#changing-defaults-for-new-projects)
 
 
 ### Important parameters to check
 
 The most important parameters are related to the tracking pipeline.
-In particular, if you are using the newer [BarlowTrack](https://github.com/Zimmer-lab/barlow_track/) method, you must set the path to the neural network here:
+In particular, if you are using the newer [BarlowTrack](https://github.com/Zimmer-lab/barlow_track/) method, you must set the path to the neural network within this file (inside the project you just made):
 ```
-project_folder/
-├── snakemake/snakemake_config.yaml
+PROJECT_FOLDER/snakemake/snakemake_config.yaml
 ```
 
-And set:
+And set the variable (the top two variables):
 ```
 use_barlow_tracker: true
 barlow_model_path: YOUR_TRAINED_NETWORK_FOLDER/resnet50.pth
 ```
 
+Note that there are many other parameters in this config file, mostly related to the behavior pipeline (not covered in this document, but rather a sibling [repo](https://github.com/Zimmer-lab/centerline_behavior_annotation)).
+
 ### Actually running the pipeline
 
 Snakemake organizes all of the analysis steps; for more information I suggest the main [docs](https://snakemake.readthedocs.io/en/stable/).
 No detailed knowledge should be necessary, and our helper script should run all steps.
+First, navigate to the project and activate the conda environment:
+
+```commandline
+cd /PATH_TO_THE_PROJECT/snakemake
+conda activate MY_ENV
+```
+
 It is highly recommended to do look at the help first, and then do a dryrun:
 
 ```commandline
-cd /PATH_TO_THE_PROJECT/snakemake
-conda activate MY_ENV
 bash RUNME.sh -h
-```
-
-```commandline
-cd /PATH_TO_THE_PROJECT/snakemake
-conda activate MY_ENV
 bash RUNME.sh -n
 ```
 
-This will print which steps need to be run, which are dynamically determined based on the already existing files, if any.
+This will print which steps need to be run in a table format; these are dynamically determined based on the already existing files, if any.
 To run **LOCALLY**, use `-c`:
 
 ```commandline
-cd /PATH_TO_THE_PROJECT/snakemake
-conda activate MY_ENV
 bash RUNME.sh -c
 ```
 
 For a more computationally efficient workflow, we run on a cluster via slurm.
-However, the exact cluster configuration parameters can change dramatically across clusters, particularly for using gpu partitions.
-Please check with your local admin and modify the `cluster_config.yaml` file in this snakemake folder according to their advice.
+However, the exact cluster parameters can change dramatically across clusters, particularly for using gpu partitions.
+Please check with your local admin and modify the `cluster_config.yaml` file (in this snakemake folder) according to their advice.
 To run on a cluster (using slurm), no flags are needed:
 
 ```commandline
-cd /PATH_TO_THE_PROJECT/snakemake
-conda activate MY_ENV
 bash RUNME.sh
 ```
 
