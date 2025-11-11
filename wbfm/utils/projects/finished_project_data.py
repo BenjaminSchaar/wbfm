@@ -3,6 +3,9 @@ import logging
 import shutil
 from collections import defaultdict
 
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+
 from wbfm.utils.external.utils_pandas import combine_columns_with_suffix
 
 import tables
@@ -1404,13 +1407,19 @@ class ProjectData:
         X = self.calc_default_traces(**trace_kwargs)
         if combine_left_right:
             X = combine_columns_with_suffix(X, suffixes=['L', 'R'], how='mean')
-        X = fill_nan_in_dataframe(X, do_filtering=False)
-        X -= X.mean()
-        pca = PCA(n_components=n_components, whiten=False)
+        # X = fill_nan_in_dataframe(X, do_filtering=False)
+
+        pipe = Pipeline([
+            ('subtract_mean', StandardScaler(with_mean=True, with_std=False)),
+            ('pca', PCA(n_components=n_components, whiten=False))
+        ])
+        pca = pipe.named_steps['pca']
+        # X -= X.mean()
+        # pca = PCA(n_components=n_components, whiten=False)
         if return_pca_weights:
-            pca.fit(X)
+            pipe.fit(X)
             pca_weights = pca.components_.T
-        pca.fit(X.T)
+        pipe.fit(X.T)
         pca_modes = pca.components_.T
         if multiply_by_variance:
             pca_modes *= pca.explained_variance_

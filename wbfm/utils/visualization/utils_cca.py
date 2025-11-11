@@ -64,6 +64,7 @@ class CCAPlotter:
             self._df_traces_truncated = pd.DataFrame(X, index=df_traces.index)
             self._pca_traces = pca
 
+        opt = opt.copy()
         opt.update(self.beh_kwargs or {})
         df_beh = self.project_data.calc_default_behaviors(**opt, add_constant=False)
         # Standardize, but do not fully z-score, the behaviors
@@ -183,12 +184,16 @@ class CCAPlotter:
             X = self._df_traces  # Use the non-truncated traces
 
         if use_pca:
-            # See calc_pca_modes
-            pipe = Pipeline([
-                ('subtract_mean', StandardScaler(with_mean=True, with_std=False)),
-                ('pca', PCA(n_components=n_components, whiten=False))
-            ])
-            X_r_recon = pipe.inverse_transform(pipe.fit_transform(X))
+            # See calc_pca_modes; use the main project class
+            pca_class = self.project_data.calc_pca_modes(n_components=n_components, multiply_by_variance=False,
+                                                         return_pca_object=True, **self.trace_kwargs)
+
+            X_r_recon = pca_class.inverse_transform(pca_class.transform(X.T)).T
+            # pipe = Pipeline([
+            #     ('subtract_mean', StandardScaler(with_mean=True, with_std=False)),
+            #     ('pca', PCA(n_components=n_components, whiten=False))
+            # ])
+            # X_r_recon = pipe.inverse_transform(pipe.fit_transform(X))
         else:
             X_r_recon, Y_r_recon = self.calc_cca_reconstruction(n_components=n_components, **kwargs)
             if use_behavior:
@@ -304,6 +309,13 @@ class CCAPlotter:
 
             fig = px.line(self._df_beh, title=f'Raw behavior data')
             self.project_data.shade_axis_using_behavior(plotly_fig=fig)
+            fig.show()
+
+            # Correlation between behaviors and traces
+            df_beh = self._get_beh_df(binary_behaviors, raw_not_truncated=True)
+            df_pca = self.calc_pca_mode(i)[0]
+            df_corr = pd.concat([df_beh, df_pca], axis=1).corr()
+            fig = px.imshow(df_corr, height=400, width=600)
             fig.show()
 
         from ipywidgets import interact
