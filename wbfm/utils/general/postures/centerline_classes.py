@@ -1829,7 +1829,7 @@ class WormFullVideoPosture:
         return kymo_envelope
 
     @staticmethod
-    def load_from_project(project_data):
+    def load_from_project(project_data, DEBUG=False):
         # Get the relevant foldernames from the project
         # The exact files may not be in the config, so try to find them
         project_config = project_data.project_config
@@ -1895,9 +1895,15 @@ class WormFullVideoPosture:
         beh_path = project_config.get_behavior_config().absolute_subfolder
         if beh_path is not None:
             filename_table_position = WormFullVideoPosture.find_stage_position_in_folder(beh_path)
+            if DEBUG:
+                print(f"Searching for stage position in local behavior folder: {beh_path}, found: {filename_table_position}")
         if filename_table_position is None and raw_behavior_subfolder is not None:
             filename_table_position = WormFullVideoPosture.find_stage_position_in_folder(raw_behavior_subfolder.parent)
+            if DEBUG:
+                print(f"Searching for stage position in remote behavior folder: {raw_behavior_subfolder.parent}, found: {filename_table_position}")
         all_files['filename_table_position'] = filename_table_position
+        if filename_table_position is None and DEBUG:
+            print(f"No stage position file found in either local ({beh_path}) or remote path ({raw_behavior_subfolder})")
 
         # Get manual behavior annotations
         try:

@@ -47,6 +47,7 @@ class CCAPlotter:
     _pca_beh: PCA = None
 
     trace_kwargs: dict = None
+    beh_kwargs: dict = None
 
     def __post_init__(self):
         # Default traces and behaviors
@@ -63,6 +64,7 @@ class CCAPlotter:
             self._df_traces_truncated = pd.DataFrame(X, index=df_traces.index)
             self._pca_traces = pca
 
+        opt.update(self.beh_kwargs or {})
         df_beh = self.project_data.calc_default_behaviors(**opt, add_constant=False)
         # Standardize, but do not fully z-score, the behaviors
         beh_std = df_beh.std()

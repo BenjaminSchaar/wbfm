@@ -1039,6 +1039,7 @@ class ProjectData:
                                rename_neurons_using_manual_ids: bool = False,
                                z_score: bool = False,
                                binary_behaviors: bool = False,
+                               additional_behaviors: list = None,
                                add_constant: bool = False,
                                verbose=0,
                                **kwargs):
@@ -1061,6 +1062,9 @@ class ProjectData:
                               'dorsal_only_body_curvature', 'dorsal_only_head_curvature']
                               #'worm_nose_peak_frequency', 'worm_head_peak_frequency',
                               #'worm_speed_body_peak_frequency']
+        if additional_behaviors is not None:
+            behavior_codes = behavior_codes + additional_behaviors
+
         behavior_dict = {}
         for code in behavior_codes:
             behavior_dict[code] = self.calculate_behavior_trace(code, **kwargs)[1]

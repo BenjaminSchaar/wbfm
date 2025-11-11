@@ -52,7 +52,6 @@ def resolve_mounted_path_in_current_os(raw_path: str, verbose: int = 0) -> str:
                 raise FileNotFoundError("File mounted to local drive; network system can't find it")
 
     # Swap mounted drive locations
-    # UPDATE REGULARLY
     # Last updated: Oct 2025
     mounted_drive_pairs = [
         ('Y:', "/groups/zimmer"),
@@ -63,7 +62,7 @@ def resolve_mounted_path_in_current_os(raw_path: str, verbose: int = 0) -> str:
         ('S:', "/lisc/data/scratch/neurobiology"),
         ('S:', "/lisc/data/scratch/neurobiology/zimmer"),
         (r'//samba.lisc.univie.ac.at/scratch', "/lisc/data/scratch"),  # Mac
-        ('/lisc/data/scratch', "/lisc/data/scratch")
+        ('/lisc/scratch', "/lisc/data/scratch")
     ]
 
     # Loop through drive name matches, and test each one
@@ -77,14 +76,23 @@ def resolve_mounted_path_in_current_os(raw_path: str, verbose: int = 0) -> str:
                 if path_is_windows_style:
                     path = raw_path.replace(win_drive, linux_drive)
                     path = str(Path(path).resolve())
+                    if verbose >= 2:
+                        print(f"Converted windows style path {raw_path} to linux style {path}")
                 elif path_is_linux_style:
                     # Then we're trying to fix the cluster renaming the partitions (currently, same fixing logic as above)
                     path = raw_path.replace(win_drive, linux_drive)
                     path = str(Path(path).resolve())
+                    if verbose >= 2:
+                        print(f"Converted linux style path {raw_path} to linux style {path}")
                     
             elif machine_is_windows and path_is_linux_style:
                 path = raw_path.replace(linux_drive, win_drive)
                 path = str(Path(path).resolve())
+                if verbose >= 2:
+                    print(f"Converted linux style path {raw_path} to windows style {path}")
+            else:
+                if verbose >= 2:
+                    print(f"No conversion needed for path {raw_path} on os {os.name}")
 
             if path and os.path.exists(path):
                 if verbose >= 1:
@@ -92,7 +100,7 @@ def resolve_mounted_path_in_current_os(raw_path: str, verbose: int = 0) -> str:
                 break
             else:
                 if path and verbose >= 2:
-                    print(f"Failed to resolve {raw_path} to {path}, continuing...")
+                    print(f"Failed to resolve {raw_path} to {path} (path didn't exist), continuing...")
         except OSError:
             # Happens when the mounted drive name doesn't exist or has another error
             pass
@@ -101,8 +109,6 @@ def resolve_mounted_path_in_current_os(raw_path: str, verbose: int = 0) -> str:
         path = raw_path
         if verbose >= 1:
             print(f"Did not successfully resolve path; returning raw path: {raw_path}")
-
-
 
     # Final checks
     assert path is not None, f"Resolving path in OS failed; this shouldn't happen (raw_path: {raw_path})"
