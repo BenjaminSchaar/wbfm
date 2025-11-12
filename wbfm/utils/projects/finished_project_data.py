@@ -1346,9 +1346,9 @@ class ProjectData:
         """Copy all paper traces from the .cache folder to the traces folder"""
         source_folder = self.data_cacher.cache_dir
         target_folder = self.project_config.get_traces_config().absolute_subfolder
-        # Copy every .h5 file
+        # Copy a set of .h5 files
         for fname in os.listdir(source_folder):
-            if fname.endswith('.h5'):
+            if fname in ['paper_traces.h5', 'paper_traces_red.h5', 'paper_traces_green.h5', 'paper_traces_no_interpolation.h5']:
                 source_path = os.path.join(source_folder, fname)
                 target_path = os.path.join(target_folder, fname)
                 shutil.copy(source_path, target_path)
