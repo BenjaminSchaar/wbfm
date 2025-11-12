@@ -18,7 +18,7 @@ import plotly.express as px
 # In[2]:
 
 
-from wbfm.utils.general.hardcoded_paths import get_hierarchical_modeling_dir
+from wbfm.utils.general.utils_hardcoded import get_hierarchical_modeling_dir
 
 fname = os.path.join(get_hierarchical_modeling_dir(), 'data.h5')
 print(fname)
@@ -123,7 +123,7 @@ df_gfp = pd.concat(all_dfs_gfp).reset_index(names=['neuron_name', 'model_type'])
 # x = scaled difference between the null and non-hierarchical model
 # y = same but for hierarchical
 from wbfm.utils.general.utils_paper import apply_figure_settings, plotly_paper_color_discrete_map, data_type_name_mapping, package_bayesian_df_for_plot
-from wbfm.utils.general.hardcoded_paths import neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import neurons_with_confident_ids
 
 # df_to_plot_gcamp = package_bayesian_df_for_plot(df, relative_improvement=False).assign(datatype='Freely Moving (GCaMP, residual)')
 # df_to_plot_gfp = package_bayesian_df_for_plot(df_gfp, relative_improvement=False).assign(datatype='Freely Moving (GFP, residual)')
@@ -518,8 +518,8 @@ if to_save:
 
 
 import arviz as az
-from wbfm.utils.general.hardcoded_paths import neurons_with_confident_ids
-from wbfm.utils.general.hardcoded_paths import role_of_neuron_dict
+from wbfm.utils.general.utils_hardcoded import neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import role_of_neuron_dict
 
 
 # In[27]:
@@ -678,7 +678,7 @@ df_params.head()
 # In[38]:
 
 
-from wbfm.utils.general.hardcoded_paths import role_of_neuron_dict
+from wbfm.utils.general.utils_hardcoded import role_of_neuron_dict
 # Get radial term: combination of raw curvature amplitude and median of the sigmoid term
 df_params['r'] = np.exp(df_params['log_amplitude_mu']) * df_params['sigmoid_term_quantile'] 
 
@@ -1610,7 +1610,7 @@ this_idx
 # In[ ]:
 
 
-from wbfm.utils.general.hardcoded_paths import get_hierarchical_modeling_dir
+from wbfm.utils.general.utils_hardcoded import get_hierarchical_modeling_dir
 from wbfm.utils.projects.finished_project_data import ProjectData
 
 

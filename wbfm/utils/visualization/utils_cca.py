@@ -22,7 +22,7 @@ from wbfm.utils.general.utils_behavior_annotation import BehaviorCodes
 import plotly.graph_objects as go
 from methodtools import lru_cache
 from wbfm.utils.projects.finished_project_data import ProjectData
-from wbfm.utils.general.hardcoded_paths import neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import neurons_with_confident_ids
 
 
 @dataclass

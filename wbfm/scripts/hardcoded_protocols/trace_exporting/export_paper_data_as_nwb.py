@@ -4,7 +4,7 @@ from pathlib import Path
 from tqdm.auto import tqdm
 import argparse
 
-from wbfm.utils.general.hardcoded_paths import load_paper_datasets
+from wbfm.utils.general.utils_hardcoded import load_paper_datasets
 from wbfm.utils.nwb.utils_nwb_export import nwb_using_project_data
 
 if __name__ == '__main__':

@@ -50,7 +50,7 @@ project_data_gcamp = ProjectData.load_final_project_data_from_config(fname)
 
 
 # Load multiple datasets
-from wbfm.utils.general.hardcoded_paths import load_paper_datasets
+from wbfm.utils.general.utils_hardcoded import load_paper_datasets
 all_projects_gcamp = load_paper_datasets('gcamp')
 
 

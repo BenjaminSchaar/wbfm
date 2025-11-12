@@ -47,7 +47,7 @@ project_data_gcamp = ProjectData.load_final_project_data_from_config(fname)
 # In[4]:
 
 
-from wbfm.utils.general.hardcoded_paths import load_paper_datasets
+from wbfm.utils.general.utils_hardcoded import load_paper_datasets
 all_projects_gcamp = load_paper_datasets(['gcamp', 'hannah_O2_fm'])
 
 
@@ -779,7 +779,7 @@ df_mode_correlations
 from wbfm.utils.visualization.utils_cca import calc_cca_weights_for_all_projects
 import plotly.express as px
 from wbfm.utils.general.utils_paper import apply_figure_settings, plotly_paper_color_discrete_map
-from wbfm.utils.general.hardcoded_paths import neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import neurons_with_confident_ids
 from wbfm.utils.visualization.utils_plot_traces import add_p_value_annotation
 output_folder = 'cca'
 
@@ -850,7 +850,7 @@ df_both1.columns = ['Dataset Name', 'Neuron', 'Weight', 'Behavior Type']
 # In[66]:
 
 
-from wbfm.utils.general.hardcoded_paths import neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import neurons_with_confident_ids
 neurons_to_plot = neurons_with_confident_ids(combine_left_right=True)
 fig = px.box(df_both1[df_both1['Neuron'].isin(neurons_to_plot)], x='Neuron', y='Weight', color='Behavior Type',
              hover_data=['Dataset Name'],
@@ -936,7 +936,7 @@ df_weights_binary2 = df_weights_binary2[[c for c in df_weights_binary2.columns i
 # In[71]:
 
 
-from wbfm.utils.general.hardcoded_paths import neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import neurons_with_confident_ids
 neurons_to_plot = neurons_with_confident_ids(combine_left_right=True)
 
 # Both modes together

@@ -49,7 +49,7 @@ fname = "/scratch/neurobiology/zimmer/fieseler/wbfm_projects/2022-11-27_spacer_7
 
 
 # Load multiple datasets
-from wbfm.utils.general.hardcoded_paths import load_paper_datasets
+from wbfm.utils.general.utils_hardcoded import load_paper_datasets
 # all_projects_gcamp = load_paper_datasets('gcamp')
 # INSTEAD: use Hannah's projects, because they are ID'ed with the O2 neurons
 all_projects_gcamp = load_paper_datasets(['hannah_O2_fm', 'gcamp'])
@@ -201,7 +201,7 @@ if to_save:
 # In[16]:
 
 
-from wbfm.utils.general.hardcoded_paths import list_of_gas_sensing_neurons
+from wbfm.utils.general.utils_hardcoded import list_of_gas_sensing_neurons
 
 
 # In[17]:
@@ -297,7 +297,7 @@ if to_save:
 
 from wbfm.utils.visualization.utils_cca import calc_pca_weights_for_all_projects
 from wbfm.utils.visualization.multiproject_wrappers import build_dataframe_of_variance_explained
-from wbfm.utils.general.hardcoded_paths import neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import neurons_with_confident_ids
 
 
 # ## Immob

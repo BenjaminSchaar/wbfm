@@ -10,7 +10,7 @@ from stardist.models import StarDist3D, StarDist2D
 import os
 from csbdeep.utils import Path, normalize
 from wbfm.utils.external.custom_errors import IncompleteConfigFileError
-from wbfm.utils.general.hardcoded_paths import load_hardcoded_neural_network_paths
+from wbfm.utils.general.utils_hardcoded import load_hardcoded_neural_network_paths
 from wbfm.utils.general.utils_filenames import is_absolute_in_any_os
 
 
