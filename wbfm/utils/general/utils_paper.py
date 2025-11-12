@@ -2,6 +2,7 @@ import logging
 import os
 from typing import Dict
 
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -10,7 +11,7 @@ import plotly.graph_objects as go
 from tqdm.auto import tqdm
 
 from wbfm.utils.external.utils_matplotlib import export_legend
-from wbfm.utils.general.utils_hardcoded import load_paper_datasets
+from wbfm.utils.general.utils_hardcoded import get_neuron_base, load_paper_datasets, neuron_groups
 
 from wbfm.utils.utils_cache import cache_to_disk_class
 from wbfm.utils.external.utils_plotly import pastelize_color, mute_color

@@ -784,3 +784,21 @@ def neuron_groups(group_name, base_names=False)-> list:
     neuron_id_dict['Schoen_et_al_confident'] = [neuron for neuron in neuron_id_dict['Schoen_et_al_confident'] if neuron not in ['VD11','RMEL','RMER','RMED','RMEV']]
 
     return neuron_id_dict[group_name]
+
+
+def get_neuron_base(neuron_name:str) -> str:
+    """
+    A function to get the base name of a neuron, removing the L or R suffix if it exists.
+    @param neuron_name: str
+    @return:
+    """
+
+    # all neurons
+    all_neurons = neuron_groups("all_neurons")
+    # Only try removing last char if it is L or R
+    if neuron_name.endswith(("L", "R")):
+        possible_base = neuron_name[:-1]
+        # Check if both L and R variants exist for this base
+        if (possible_base + "L" in all_neurons) and (possible_base + "R" in all_neurons):
+            return possible_base
+    return neuron_name
