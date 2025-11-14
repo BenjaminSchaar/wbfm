@@ -76,7 +76,8 @@ def add_trendline_annotation(fig):
     return fig
 
 
-def plotly_plot_mean_and_shading(df, x, y, color=None, line_name='Mean', add_individual_lines=False,
+def plotly_plot_mean_and_shading(df, x, y, color=None, line_name='Mean', shade_style='std',
+                                 add_individual_lines=False,
                                  cmap=None, x_intersection_annotation=None, annotation_kwargs=None,
                                  annotation_position=None, fig=None, is_second_plot=False, **kwargs):
     """
@@ -118,7 +119,15 @@ def plotly_plot_mean_and_shading(df, x, y, color=None, line_name='Mean', add_ind
     # Calculate mean and std dev for each x value
     grouped = df.groupby(x)
     mean_y = grouped[y].mean()
-    std_y = grouped[y].std()
+    if shade_style == 'std':
+        shade_y = grouped[y].std()
+        upper_y = mean_y + shade_y
+        lower_y = mean_y - shade_y
+    elif shade_style == 'quantile':
+        upper_y = grouped[y].quantile(0.75)
+        lower_y = grouped[y].quantile(0.25)
+    else:
+        raise ValueError(f"Unknown shade_style: {shade_style}; valid options are 'std' and 'quantile'")
 
     if fig is None:
         fig = go.Figure()
@@ -154,9 +163,9 @@ def plotly_plot_mean_and_shading(df, x, y, color=None, line_name='Mean', add_ind
                     **opt)
 
     # First one, which doesn't show up
-    fig.add_trace(go.Scatter(x=mean_y.index, y=mean_y + std_y, **fill_opt))
+    fig.add_trace(go.Scatter(x=mean_y.index, y=upper_y, **fill_opt))
     # Second one, which does show up
-    fig.add_trace(go.Scatter(x=mean_y.index, y=mean_y - std_y, fill='tonexty', **fill_opt))
+    fig.add_trace(go.Scatter(x=mean_y.index, y=lower_y, fill='tonexty', **fill_opt))
 
     if x_intersection_annotation is not None:
         y_value_at_x = mean_y.loc[x_intersection_annotation]
