@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 import os
 from typing import Dict
@@ -836,12 +837,15 @@ if __name__ == '__main__':
 
 def plot_foldchange_boxes(
         df: pd.DataFrame,
-        behaviors: list,
+        behavior_col: str,
         groups: list,
+        rows_col: str = "Neuron",
+        subtitle_behavior_col: str = None,
         value_col: str = "log2_fc",
         cmap: str = "Blues",
-        hspace: float = 1.0,
-        vspace: float = 0.33,
+        behavior_hspace: float = 1.0,
+        row_vspace: float = 0.33,
+        subtitle_hgap: float = 0.5,
         group_vgap: float = 1.0,
         box_size: float = 1.0,
         edge_lw: float = 1.2,
@@ -852,7 +856,9 @@ def plot_foldchange_boxes(
         vmax: float = None,
         vmin: float = None,
         nonsig_color: str = "lightgray",
-        neuron_order: list = None
+        neuron_order: list = None,
+        add_text: bool = False,
+        DEBUG=False
 ):
     """
     Custom box-grid plot (neurons x behaviors) with group ordering.
@@ -870,8 +876,12 @@ def plot_foldchange_boxes(
         return name.replace("_", "\n")
 
     df = df.copy()
-    if "Neuron" not in df.columns:
-        df["Neuron"] = df.index.to_series().str.split("_").str[0]
+    if rows_col not in df.columns:
+        df[rows_col] = df.index.to_series().str.split("_").str[0]
+    
+    if behavior_col not in df.columns:
+        raise ValueError(f"DataFrame must contain behavior column '{behavior_col}'")
+    behaviors = df[behavior_col].unique().tolist()
 
     # --- if using pval log10, create transformed column ---
     if use_pval_log10:
@@ -892,7 +902,7 @@ def plot_foldchange_boxes(
         value_col = "signed_pval_log10"
 
     # === Assign & sort neurons ===
-    ordered_neurons, neuron_assignment = assign_and_sort_neurons(df, groups=groups, value_col=value_col,
+    ordered_neurons, neuron_assignment = assign_and_sort_neurons(df, groups=groups, value_col=value_col, rows_col=rows_col,
                                                                  neuron_order=neuron_order)
 
     # --- Build data dictionary ---
@@ -900,22 +910,18 @@ def plot_foldchange_boxes(
     fill_value = 0.0 if use_pval_log10 else np.nan
 
     # Build data_dict to include all neurons in ordered_neurons
-    data_dict = {n: {beh: fill_value for beh in behaviors} for n in ordered_neurons}
-
-    # Fill in actual values from the dataframe
-    for _, row in df.iterrows():
-        neuron = row["Neuron"]
-
-        if "behavior" in df.columns:
-            beh = row["behavior"]
-            if beh in behaviors:
-                data_dict[neuron][beh] = row[value_col]
-        else:
-            for beh in behaviors:
-                data_dict[neuron][beh] = row[value_col]
+    # Change: data_dict is a flat dict with multi-index keys, not a nested dict
+    data_df = df.groupby([rows_col, behavior_col, subtitle_behavior_col] if subtitle_behavior_col is not None else [rows_col, behavior_col])[value_col].median()
+    # data_df = df.set_index([rows_col, behavior_col, subtitle_behavior_col]) if subtitle_behavior_col is not None else df.set_index([rows_col, behavior_col])
+    data_dict = defaultdict(lambda: fill_value, data_df.to_dict())
+    if DEBUG:
+        print("Data dict keys:")
+        for k in data_dict.keys():
+            print(k)
+            print(f"  Value: {data_dict[k]}")
 
     # Gather all values for colormap normalization
-    all_values = [v for n in data_dict.values() for v in n.values() if not np.isnan(v)]
+    all_values = list(data_dict.values())
     if len(all_values) == 0:
         raise ValueError("No numeric values found to color boxes.")
 
@@ -924,13 +930,15 @@ def plot_foldchange_boxes(
         abs_max = np.max(np.abs(all_values))
         v_min, v_max = -abs_max, abs_max
     else:
-        v_min, v_max = np.min(all_values), np.max(all_values)
+        v_min, v_max = np.nanmin(all_values), np.nanmax(all_values)
 
     vmin = vmin if vmin is not None else v_min
     vmax = vmax if vmax is not None else v_max
 
     cmap_obj = plt.get_cmap(cmap)
     norm = plt.Normalize(vmin=vmin, vmax=vmax)
+    if DEBUG:
+        print(f"Color scale vmin: {vmin}, vmax: {vmax}")
 
     # Geometry
     bw, bh = box_size, box_size
@@ -941,6 +949,10 @@ def plot_foldchange_boxes(
     ytick_positions, ytick_labels = [], []
     ycursor = 0.0
     group_positions = {}
+    if isinstance(groups, dict):
+        groups = list(groups.keys())
+    else:
+        raise ValueError("groups must be a list or dict")
 
     for g in groups + ["other"]:
         group_neurons = [n for n in ordered_neurons if neuron_assignment[n] == g]
@@ -951,45 +963,88 @@ def plot_foldchange_boxes(
             ypos_map[n] = ycursor
             ytick_positions.append(ycursor + bh / 2.0)
             ytick_labels.append(n)
-            ycursor += bh + vspace
-        end_y = ycursor - vspace
+            ycursor += bh + row_vspace
+        end_y = ycursor - row_vspace
         group_positions[g] = (start_y, end_y)
         ycursor += group_vgap
 
-    total_width = n_beh * bw + (n_beh - 1) * hspace
+    # x positions also
+    xpos_map, xtick_positions, xtick_labels, behavior_positions, total_width = compute_xpos_map(df, behavior_col=behavior_col, sub_behavior_col=subtitle_behavior_col,
+                                                                                                box_size=bw, hspace=behavior_hspace)
+
+    # total_width = n_beh * bw + (n_beh - 1) * behavior_hspace
     total_height = ycursor - group_vgap
 
     fig, ax = plt.subplots(figsize=figsize)
 
     # Draw boxes
-    for neuron in ordered_neurons:
+    for key in data_dict.keys():
+        if len(key) == 2:
+            neuron, beh_key = key
+        elif len(key) == 3:
+            neuron, beh_key, subbeh_key = key
+            beh_key = (beh_key, subbeh_key)
+        else:
+            raise ValueError("data_dict keys must be of length 2 or 3")
+        
         ypos = ypos_map[neuron]
-        for xi, beh in enumerate(behaviors):
-            xpos = xi * (bw + hspace)
-            val = data_dict[neuron][beh]
+        xpos = xpos_map[beh_key]
+        val = data_dict[key]
 
-            if use_pval_log10 and nonsig_color is not None:
-                # Missing or nonsignificant → gray
-                color = nonsig_color if np.isnan(val) or val == 0.0 else cmap_obj(norm(val))
-            else:
-                # Fold-change mode: missing values are gray
-                color = nonsig_color if np.isnan(val) else cmap_obj(norm(val))
+        if use_pval_log10 and nonsig_color is not None:
+            # Missing or nonsignificant → gray
+            color = nonsig_color if np.isnan(val) or val == 0.0 else cmap_obj(norm(val))
+        else:
+            # Fold-change mode: missing values are gray
+            color = nonsig_color if np.isnan(val) else cmap_obj(norm(val))
+        if DEBUG:
+            print(f"Drawing box for neuron {neuron}, behavior {beh_key} at ({xpos}, {ypos}) with value {val} and color {color}")
+        rect = Rectangle(
+            (xpos, ypos),
+            bw,
+            bh,
+            facecolor=color,
+            edgecolor="black",
+            linewidth=edge_lw,
+            clip_on=False
+        )
+        ax.add_patch(rect)
 
-            rect = Rectangle(
-                (xpos, ypos),
-                bw,
-                bh,
-                facecolor=color,
-                edgecolor="black",
-                linewidth=edge_lw,
-                clip_on=False
+        if add_text:
+            threshold = 0.5 * (vmax - vmin)
+            ax.text(
+                xpos + bw/2,      # x: center of box
+                ypos + bh/2,      # y: center of box
+                f"{val:.2f}",     # text to display
+                # f"{neuron[0]},{beh_key[-1]}\n{val:.2f}",     # text to display
+                ha='center',       # horizontal alignment
+                va='center',       # vertical alignment
+                fontsize=8,
+                color='white' if abs(val) > threshold else 'black',  # contrast with background
+                weight='bold'
             )
-            ax.add_patch(rect)
-
     # X ticks
-    xtick_positions = [xi * (bw + hspace) + bw / 2.0 for xi in range(n_beh)]
-    ax.set_xticks(xtick_positions)
-    ax.set_xticklabels(behaviors)
+    # xtick_positions = [xi * (bw + behavior_hspace) + bw / 2.0 for xi in range(n_beh)]
+    print(xtick_positions)
+    if 'sub' in xtick_positions:
+        ax.set_xticks(xtick_positions['sub'])
+        ax.set_xticklabels(xtick_labels['sub'])
+        # Set main as additional labels not using an axis
+        for pos, label in zip(xtick_positions['main'], xtick_labels['main']):
+            ax.text(
+                pos,
+                total_height + (bh + behavior_hspace) * 0.5,
+                label,
+                ha="center",
+                va="bottom",
+                fontsize=12,
+            )
+    else:
+        ax.set_xticks(xtick_positions['main'])
+        ax.set_xticklabels(xtick_labels['main'])
+    # for k in xtick_positions.keys():
+    #     ax.set_xticks(xtick_positions[k])
+    #     ax.set_xticklabels(xtick_labels[k])
     ax.xaxis.tick_top()
     ax.tick_params(axis="x", which="both", length=0, pad=8)
 
@@ -1002,7 +1057,7 @@ def plot_foldchange_boxes(
     for g, (start_y, end_y) in group_positions.items():
         ymid = (start_y + end_y) / 2.0 + bh / 2.0
         ax.text(
-            -(hspace + bw) * 2.5,
+            -(behavior_hspace + bw) * 2.5,
             ymid,
             format_group_label(g),
             ha="center",
@@ -1014,7 +1069,7 @@ def plot_foldchange_boxes(
     # Limits
     ax.set_xlim(-margin, total_width + margin)
     ax.set_ylim(-margin, total_height + margin)
-    ax.set_aspect("equal")
+    # ax.set_aspect("equal")
 
     # Remove spines
     for spine in ax.spines.values():
@@ -1024,7 +1079,7 @@ def plot_foldchange_boxes(
     sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap_obj)
     sm.set_array(all_values)
     cbar = fig.colorbar(sm, ax=ax, fraction=0.06, pad=0.03)
-    cbar_label = "Signed -log10(adj p-value)" if use_pval_log10 else "Fold change"
+    cbar_label = "Signed -log10(adj p-value)" if use_pval_log10 else value_col.replace("_", " ").title()
     cbar.set_label(cbar_label,fontsize=16)
 
     # --- Modify colorbar tick labels if clipping happened ---
@@ -1047,6 +1102,7 @@ def assign_and_sort_neurons(
         df: pd.DataFrame,
         groups: list,
         value_col: str = "log2_fc",
+        rows_col: str = "Neuron",
         neuron_order: list = None,  # <-- optional input
 ):
     """
@@ -1064,12 +1120,19 @@ def assign_and_sort_neurons(
     """
 
     # Ensure neuron column exists
-    if "Neuron" not in df.columns:
+    if rows_col not in df.columns:
         df = df.copy()
-        df["Neuron"] = df.index.to_series().str.split("_").str[0]
+        df[rows_col] = df.index.to_series().str.split("_").str[0]
 
     # Normalize group definitions (convert L/R → base)
-    group_dict = {g: set(get_neuron_base(n) for n in neuron_groups(g)) for g in groups}
+    if isinstance(groups, list):
+        group_dict = {g: set(get_neuron_base(n) for n in neuron_groups(g)) for g in groups}
+    elif isinstance(groups, dict):
+        # Assume format is correct
+        group_dict = groups.copy()
+        groups = list(group_dict.keys())
+    else:
+        raise ValueError("groups must be a list or dict")
 
     # Build neuron -> candidate groups map
     neuron_to_groups = {}
@@ -1079,7 +1142,7 @@ def assign_and_sort_neurons(
 
     # Resolve conflicts + add "other"
     neuron_assignment = {}
-    neurons_to_assign = neuron_order if neuron_order is not None else df["Neuron"].unique()
+    neurons_to_assign = neuron_order if neuron_order is not None else df[rows_col].unique()
     for neuron in neurons_to_assign:
         if neuron not in neuron_to_groups:
             neuron_assignment[neuron] = "other"
@@ -1092,14 +1155,14 @@ def assign_and_sort_neurons(
                 neuron_assignment[neuron] = chosen
 
     # Compute max fold change per neuron for sorting
-    fc_map = df.groupby("Neuron")[value_col].max().to_dict()
+    fc_map = df.groupby(rows_col)[value_col].max().to_dict()
 
     # Build ordered list
     if neuron_order is not None:
         # Keep the user-provided order
         ordered_neurons = neuron_order.copy()
         # Include any extra neurons in df not in neuron_order at the end
-        for n in df["Neuron"].unique():
+        for n in df[rows_col].unique():
             if n not in ordered_neurons:
                 ordered_neurons.append(n)
     else:
@@ -1111,3 +1174,97 @@ def assign_and_sort_neurons(
             ordered_neurons.extend(group_neurons_sorted)
 
     return ordered_neurons, neuron_assignment
+
+
+def compute_xpos_map(df, behavior_col='behavior', sub_behavior_col=None,
+                     box_size=1.0, hspace=0.33, behavior_gap=1.0):
+    """
+    Compute x-positions for hierarchical behavior structure.
+    
+    Parameters:
+        sub_behavior_col: Optional. If None, uses flat behavior structure.
+    
+    Returns:
+        xpos_map: dict with keys (main_behavior, sub_behavior) -> x_position
+                  OR just behavior -> x_position if sub_behavior_col is None
+        xtick_positions: dict with 'main' and 'sub' tick positions (or just 'main' if no sub)
+        xtick_labels: dict with 'main' and 'sub' tick labels (or just 'main' if no sub)
+        behavior_positions: dict mapping main_behavior -> (start_x, end_x)
+        total_width: total width of the plot
+    """
+    
+    bw = box_size
+    
+    # Case 1: No sub-behaviors (flat structure)
+    if sub_behavior_col is None:
+        behaviors = df[behavior_col].unique()
+        
+        xpos_map = {}
+        tick_positions = []
+        tick_labels = []
+        behavior_positions = {}
+        
+        xcursor = 0.0
+        
+        for beh in behaviors:
+            xpos_map[beh] = xcursor
+            tick_positions.append(xcursor + bw / 2.0)
+            tick_labels.append(beh)
+            behavior_positions[beh] = (xcursor, xcursor + bw)
+            xcursor += bw + hspace
+        
+        total_width = xcursor - hspace
+        
+        return (xpos_map, 
+                {'main': tick_positions}, 
+                {'main': tick_labels}, 
+                behavior_positions, 
+                total_width)
+    
+    # Case 2: Hierarchical structure with sub-behaviors
+    behavior_hierarchy = df[[behavior_col, sub_behavior_col]].drop_duplicates()
+    grouped = behavior_hierarchy.groupby(behavior_col, sort=False)[sub_behavior_col].apply(list)
+    
+    xpos_map = {}
+    sub_tick_positions = []
+    sub_tick_labels = []
+    main_tick_positions = []
+    main_tick_labels = []
+    behavior_positions = {}
+    sub_beh_factor = 0.10
+    
+    xcursor = 0.0
+    
+    for main_beh in grouped.index:
+        sub_behaviors = grouped[main_beh]
+        start_x = xcursor
+        
+        for sub_beh in sub_behaviors:
+            xpos_map[(main_beh, sub_beh)] = xcursor
+            sub_tick_positions.append(xcursor + bw / 2.0)
+            sub_tick_labels.append(sub_beh)
+            xcursor += bw + hspace * sub_beh_factor
+        
+        xcursor = xcursor - hspace * sub_beh_factor
+        end_x = xcursor
+        
+        mid_x = (start_x + end_x) / 2.0 + bw / 2.0
+        main_tick_positions.append(mid_x)
+        main_tick_labels.append(main_beh)
+        
+        behavior_positions[main_beh] = (start_x, end_x)
+        xcursor += behavior_gap
+    
+    total_width = xcursor - behavior_gap
+    
+    xtick_positions = {
+        'main': main_tick_positions,
+        'sub': sub_tick_positions
+    }
+    
+    xtick_labels = {
+        'main': main_tick_labels,
+        'sub': sub_tick_labels
+    }
+    
+    return xpos_map, xtick_positions, xtick_labels, behavior_positions, total_width
