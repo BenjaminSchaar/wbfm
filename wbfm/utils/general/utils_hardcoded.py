@@ -688,3 +688,117 @@ def intrinsic_categories_short_description():
             "gcamp_False_immob_False_same_sign_True_diff_False": "No manifold. Statistically insignificant difference between 0 and freely moving.",
             "gcamp_False_immob_False_same_sign_False_diff_True": "No manifold. Statistically insignificant difference between 0 and freely moving.",
     }
+
+
+def neuron_groups(group_name, base_names=False)-> list:
+    """
+    All the neuron id groups we use for whole brain analysis
+    options:
+    reversal_inter_head, fwd_inter_head, ramping_neurons, fwd_inter_tail, fwd_IDs_reliable, motor_fwd, motor_rev, motor_rev_tail, turning_IDs, sleep_IDs, sensory_gas
+    
+    Originally designed by Itamar Lev
+    """
+
+
+    neuron_id_dict = dict(
+    all_known_neurons=['ADAL','ADAR','ADEL','ADER','AIML','AIMR','AINL','AINR','AVBL','AVBR','AQR','ALA','ASGR','ASGL','AIBL','AIBR','AVAL','AVAR','AVER',
+                       'AVFL', 'AVFR', 'AVG', 'AVHL','AVDR','AVDL',
+                       'AVHR', 'AVJL', 'AVJR', 'AVKL', 'AVKR', 'AVL', 'AVM',
+                           'AWAL', 'AWAR', 'AWBL', 'AWBR', 'AWCL', 'AWCR', 'BAGL', 'BAGR', 'BDUL', 'BDUR', 'CA1', 'CA2',
+                           'CA3', 'CA4', 'CA5', 'CA6', 'CA7', 'CA8', 'CA9', 'CANL', 'CANR', 'CEMDL', 'CEMDR', 'CEMVL',
+                           'CEMVR', 'CEPDL', 'CEPDR', 'CEPVL', 'CEPVR', 'CP0', 'CP1', 'CP2', 'CP3', 'CP4', 'CP5', 'CP6',
+                           'CP7', 'CP8', 'CP9', 'DA01', 'DA02',
+                           'DA03', 'DA04', 'DA05', 'DA06', 'DA07', 'DA08', 'DA09', 'DB01','DB02', 'DB04', 'DB05', 'DB06',
+                           'DB07', 'DD01', 'DD02', 'DD03', 'DD04', 'DD05', 'DD06', 'DVA', 'DVB', 'DVC', 'DVE', 'DVF',
+                           'FLPL', 'FLPR', 'HOA', 'HOB', 'HSNL', 'HSNR', 'I1L', 'I1R', 'I2L', 'I2R', 'I3', 'I4', 'I5',
+                           'I6', 'IL1DL', 'IL1DR', 'IL1L', 'IL1R', 'IL1VL', 'IL1VR', 'IL2DL', 'IL2DR', 'IL2L', 'IL2R',
+                           'IL2VL', 'IL2VR', 'LUAL', 'LUAR', 'M1', 'M2L', 'M2R', 'M3L', 'M3R',
+                           'M4', 'M5', 'MCL', 'MCML', 'MCMR', 'MCR', 'MI', 'NSML', 'NSMR', 'OLLL', 'OLLR', 'OLQDL',
+                           'OLQDR', 'OLQVL', 'OLQVR', 'PCAL', 'PCAR', 'PCBL', 'PCBR', 'PCCL', 'PCCR', 'PDA', 'PDB',
+                           'PDC', 'PDEL', 'PDER', 'PGA', 'PHAL', 'PHAR', 'PHBL', 'PHBR', 'PHCL', 'PHCR', 'PHDL', 'PHDR',
+                           'PLML', 'PLMR', 'PLNL', 'PLNR', 'PQR', 'PVCL', 'PVCR', 'PVDL', 'PVDR', 'PVM', 'PVNL', 'PVNR',
+                           'PVPL', 'PVPR', 'PVQL', 'PVQR', 'PVR', 'PVS',
+                           'PVT', 'PVU', 'PVV', 'PVWL', 'PVWR', 'PVX', 'PVY', 'PVZ', 'R1AL', 'R1AR', 'R1BL', 'R1BR',
+                           'R2AL', 'R2AR', 'R2BL', 'R2BR', 'R3AL', 'R3AR', 'R3BL', 'R3BR', 'R4AL', 'R4AR', 'R4BL',
+                           'R4BR', 'R5AL', 'R5AR', 'R5BL', 'R5BR', 'R6AL', 'R6AR', 'R6BL', 'R6BR', 'R7AL', 'R7AR',
+                           'R7BL', 'R7BR', 'R8AL', 'R8AR', 'R8BL', 'R8BR', 'R9AL', 'R9AR', 'R9BL', 'R9BR', 'RIAL',
+                           'RIAR', 'RIBL', 'RIBR', 'RICL', 'RICR', 'RID', 'RIFL',
+                           'RIFR', 'RIGL', 'RIGR', 'RIH', 'RIML', 'RIMR', 'RIPL', 'RIPR', 'RIR', 'RIS', 'RIVL', 'RIVR',
+                           'RMDDL', 'RMDDR', 'RMDL', 'RMDR', 'RMDVL', 'RMDVR', 'RMED', 'RMEL', 'RMER', 'RMEV', 'RMFL',
+                           'RMFR', 'RMGL', 'RMGR', 'RMHL', 'RMHR', 'SAADL', 'SAADR', 'SAAVL', 'SAAVR', 'SABD', 'SABVL',
+                           'SABVR', 'SDQL', 'SDQR', 'SIADL', 'SIADR', 'SIAVL', 'SIAVR', 'SIBDL', 'SIBDR', 'SIBVL',
+                           'SIBVR', 'SMBDL', 'SMBDR', 'SMBVL',
+                           'SMBVR', 'SMDDL', 'SMDDR', 'SMDVL', 'SMDVR', 'SPCL', 'SPCR', 'SPDL', 'SPDR', 'SPVL', 'SPVR',
+                           'URADL', 'URADR', 'URAVL', 'URAVR', 'URBL', 'URBR', 'URXL', 'URXR', 'URYDL', 'URYDR',
+                           'URYVL', 'URYVR', 'VA01', 'VA10', 'VA11', 'VA12', 'VA02', 'VA03', 'VA04', 'VA05', 'VA06',
+                           'VA07', 'VA08', 'VA09', 'VB01', 'VB10', 'VB11', 'VB02', 'VB03', 'VB04', 'VB05', 'VB06',
+                           'VB07', 'VB08', 'VB09', 'VC1', 'VC2', 'VC3', 'VC4', 'VC5', 'VC6',
+                           'VD01', 'VD10', 'VD11', 'VD12', 'VD13', 'VD02', 'VD03', 'VD04', 'VD05', 'VD06', 'VD07',
+                           'VD08', 'VD09'],
+    mechanosensory = ["FLPL","FLPR","OLQDR","OLQDL","OLQVL","OLQVR"],
+    reversal_inter_head = ["AVAL", "AVAR", "AVEL", "AVER", "AIBL", "AIBR", "RIML", "RIMR"],
+    fwd_inter_head=["AVBL", "AVBR", "RIBL", "RIBR", "RID", "DVA"],
+    pharyngeal = ["I6","I2","MI","M5","I4","I3","M4","M1","I1","M2","I5","MC","M3"],
+    ramping_neurons = ['URYVL', 'URYDL', 'URYVR', 'URYDR',
+                       'URAVL', 'URAVR', 'URADR', 'URADL',
+                       'OLQVL', 'OLQVR','OLQDR','OLQDL'],
+    fwd_inter_tail = ["DVA"],
+    fwd_IDs_reliable = ["RID","AVBL", "RMEL", "DVA", "RMED"], # weird list
+    motor_fwd = ["RMEL", "RMER", "RMED", "RMEV","VB02", "VB01", "DB02", "DB01", "VB03","SIADL", "SIADR","SIAVL","SIAVR","URADL","URADR","URAVL","URAVR"],
+    motor_rev = ["VA01", "VA02", "DA01","SAAVL","SAAVR"],
+    motor_rev_tail = ["VA11"],
+    turning = ["SMDVL", "SMDVR", "SMDDL", "SMDDR", "RIVL", "RIVR","RMDDL","RMDDR", 'SIAVL', 'SIAVR'],
+    turning_ventral = ["SMDVL", "SMDVR", "RIVL", "RIVR"],
+    turning_dorsal = ["SMDDL", "SMDDR", "RMDDL", "RMDDR"],
+    sleep = ["RIS", "ALA"],
+    alertness_IDs = ["RID","RIBL","RIBR"],
+    sensory_chemotaxis = ["AWBL","AWBR", "AWAL", "AWAR", "ASGL","ASGR","RIAL","RIAR"],
+    sensory_gas = ["URXL", "URXR", "AUAL", "AUAR", "AQR","BAGL", "BAGR", "IL2L", "IL2LR",'RMGL','RMGR','PQR',"AWBR","AWBL","IL1L", "IL1LR"],
+    sensory_gas_restricted = ["URXL", "URXR", "AUAL", "AUAR", "AQR","BAGL", "BAGR",'RMGL','RMGR','PQR','IL2L','IL2R'],
+    sensory_o2_restricted = ["URXL", "URXR","AQR",'PQR',"AUAL", "AUAR",'RMGL','RMGR','IL2L','IL2R'],
+    confident_id_immob=['AIBL', 'AIBR', 'RIMR', 'RIML', 'AVAL', 'AVAR', 'AVEL', 'AVER',
+                             'URYDR', 'URYVL', 'URYDL', 'URYVR', 'URADL', 'URADR',
+                             'OLQDL', 'OLQDR', 'OLQVL', 'OLQVR',
+                             'VA01', 'VA11', 'VD11', 'DA01', 'VA02', 'DA07', 'AS10', 'DD01',
+                             'RIAL', 'RIAR',
+                             'RMDVL', 'RMDVR', 'IL1L', 'IL1R', 'IL2L', 'IL2R',
+                             'RMGR', 'RMGL', 'AUAR', 'AUAL',
+                             'URXL', 'URXR', 'AQR', 'PQR',
+                             'RMEL', 'RMER', 'RMED', 'RMEV',
+                             'RIVL', 'RIVR', 'SMDVL', 'SMDVR', 'RMDDL', 'RMDDR', 'SMDDL', 'SMDDR',
+                             'RIS', 'ALA',
+                             'BAGL', 'BAGR',
+                             'DB01', 'SIAVL', 'SIAVR', 'SIADL', 'SIADR',
+                             'AVFL', 'AVFR',
+                             'RIBR', 'RIBL', 'RID', 'AVBL', 'AVBR',
+                             'VB03', 'DB02', 'VB01', 'VB02', 'DVA', 'DB07', 'VB11'])
+
+    neuron_id_dict['all_neurons'] = []
+    for neuron_group in neuron_id_dict.values():
+        neuron_id_dict['all_neurons'] += neuron_group
+    neuron_id_dict['all_fwd'] = neuron_id_dict['fwd_inter_head'] + neuron_id_dict['fwd_inter_tail'] + neuron_id_dict['motor_fwd']
+    neuron_id_dict['all_rev'] = neuron_id_dict['reversal_inter_head'] + neuron_id_dict['motor_rev'] + neuron_id_dict['motor_rev_tail']
+    neuron_id_dict['all_fwd_immob'] = [neuron for neuron in neuron_id_dict['all_fwd'] if neuron not in ['RMDDL', 'RMDDR']]
+
+    neuron_id_dict['Schoen_et_al_confident'] = neuron_id_dict['confident_id_immob'] + neuron_id_dict['sensory_gas_restricted']
+    neuron_id_dict['Schoen_et_al_confident'] = [neuron for neuron in neuron_id_dict['Schoen_et_al_confident'] if neuron not in ['VD11','RMEL','RMER','RMED','RMEV']]
+
+    return neuron_id_dict[group_name]
+
+
+def get_neuron_base(neuron_name:str) -> str:
+    """
+    A function to get the base name of a neuron, removing the L or R suffix if it exists.
+    @param neuron_name: str
+    @return:
+    """
+
+    # all neurons
+    all_neurons = neuron_groups("all_neurons")
+    # Only try removing last char if it is L or R
+    if neuron_name.endswith(("L", "R")):
+        possible_base = neuron_name[:-1]
+        # Check if both L and R variants exist for this base
+        if (possible_base + "L" in all_neurons) and (possible_base + "R" in all_neurons):
+            return possible_base
+    return neuron_name

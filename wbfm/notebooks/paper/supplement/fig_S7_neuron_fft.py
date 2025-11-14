@@ -39,7 +39,7 @@ from wbfm.utils.traces.gui_kymograph_correlations import build_all_gui_dfs_multi
 # In[3]:
 
 
-from wbfm.utils.general.hardcoded_paths import load_all_data_as_dataframe
+from wbfm.utils.general.utils_hardcoded import load_all_data_as_dataframe
 
 
 # In[4]:

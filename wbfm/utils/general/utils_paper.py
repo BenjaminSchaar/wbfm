@@ -2,6 +2,7 @@ import logging
 import os
 from typing import Dict
 
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -10,7 +11,7 @@ import plotly.graph_objects as go
 from tqdm.auto import tqdm
 
 from wbfm.utils.external.utils_matplotlib import export_legend
-from wbfm.utils.general.hardcoded_paths import load_paper_datasets
+from wbfm.utils.general.utils_hardcoded import get_neuron_base, load_paper_datasets, neuron_groups
 
 from wbfm.utils.utils_cache import cache_to_disk_class
 from wbfm.utils.external.utils_plotly import pastelize_color, mute_color
@@ -830,3 +831,283 @@ if __name__ == '__main__':
         for project_name, project_data in tqdm(project_dict.items()):
             # For now, only calculate the non-interpolated traces, because the other ones are too slow
             project_data.calc_default_traces(use_paper_options=True, interpolate_nan=False)
+
+
+
+def plot_foldchange_boxes(
+        df: pd.DataFrame,
+        behaviors: list,
+        groups: list,
+        value_col: str = "log2_fc",
+        cmap: str = "Blues",
+        hspace: float = 1.0,
+        vspace: float = 0.33,
+        group_vgap: float = 1.0,
+        box_size: float = 1.0,
+        edge_lw: float = 1.2,
+        margin: float = 0.02,
+        figsize: tuple = (6, 6),
+        use_pval_log10: bool = False,
+        pval_threshold: float = 0.1,
+        vmax: float = None,
+        vmin: float = None,
+        nonsig_color: str = "lightgray",
+        neuron_order: list = None
+):
+    """
+    Custom box-grid plot (neurons x behaviors) with group ordering.
+    Can show either log2_fc (default) or signed -log10(p_value_adj).
+
+    Originally designed by Itamar Lev
+    """
+
+    def format_group_label(name: str) -> str:
+        """
+        Replace underscores with line breaks for prettier multi-line group labels.
+        Example:
+            "motor_rev_tail" -> "motor\nrev\ntail"
+        """
+        return name.replace("_", "\n")
+
+    df = df.copy()
+    if "Neuron" not in df.columns:
+        df["Neuron"] = df.index.to_series().str.split("_").str[0]
+
+    # --- if using pval log10, create transformed column ---
+    if use_pval_log10:
+        if "p_value_adj" not in df.columns:
+            raise ValueError("DataFrame must contain 'p_value_adj' when use_pval_log10=True.")
+        if "log2_fc" not in df.columns:
+            raise ValueError("DataFrame must contain 'log2_fc' when use_pval_log10=True.")
+
+        def signed_log10(row):
+            if pd.isna(row["p_value_adj"]) or pd.isna(row["log2_fc"]):
+                return np.nan
+            if row["p_value_adj"] >= pval_threshold:
+                return 0.0  # mark as nonsignificant
+            sign = np.sign(row["log2_fc"])
+            return sign * (-np.log10(row["p_value_adj"]))
+
+        df["signed_pval_log10"] = df.apply(signed_log10, axis=1)
+        value_col = "signed_pval_log10"
+
+    # === Assign & sort neurons ===
+    ordered_neurons, neuron_assignment = assign_and_sort_neurons(df, groups=groups, value_col=value_col,
+                                                                 neuron_order=neuron_order)
+
+    # --- Build data dictionary ---
+    # Determine fill value for missing entries
+    fill_value = 0.0 if use_pval_log10 else np.nan
+
+    # Build data_dict to include all neurons in ordered_neurons
+    data_dict = {n: {beh: fill_value for beh in behaviors} for n in ordered_neurons}
+
+    # Fill in actual values from the dataframe
+    for _, row in df.iterrows():
+        neuron = row["Neuron"]
+
+        if "behavior" in df.columns:
+            beh = row["behavior"]
+            if beh in behaviors:
+                data_dict[neuron][beh] = row[value_col]
+        else:
+            for beh in behaviors:
+                data_dict[neuron][beh] = row[value_col]
+
+    # Gather all values for colormap normalization
+    all_values = [v for n in data_dict.values() for v in n.values() if not np.isnan(v)]
+    if len(all_values) == 0:
+        raise ValueError("No numeric values found to color boxes.")
+
+    if use_pval_log10:
+        # force symmetric color scale around 0
+        abs_max = np.max(np.abs(all_values))
+        v_min, v_max = -abs_max, abs_max
+    else:
+        v_min, v_max = np.min(all_values), np.max(all_values)
+
+    vmin = vmin if vmin is not None else v_min
+    vmax = vmax if vmax is not None else v_max
+
+    cmap_obj = plt.get_cmap(cmap)
+    norm = plt.Normalize(vmin=vmin, vmax=vmax)
+
+    # Geometry
+    bw, bh = box_size, box_size
+    n_beh = len(behaviors)
+
+    # --- Compute neuron positions with group gaps ---
+    ypos_map = {}
+    ytick_positions, ytick_labels = [], []
+    ycursor = 0.0
+    group_positions = {}
+
+    for g in groups + ["other"]:
+        group_neurons = [n for n in ordered_neurons if neuron_assignment[n] == g]
+        if not group_neurons:
+            continue
+        start_y = ycursor
+        for n in group_neurons:
+            ypos_map[n] = ycursor
+            ytick_positions.append(ycursor + bh / 2.0)
+            ytick_labels.append(n)
+            ycursor += bh + vspace
+        end_y = ycursor - vspace
+        group_positions[g] = (start_y, end_y)
+        ycursor += group_vgap
+
+    total_width = n_beh * bw + (n_beh - 1) * hspace
+    total_height = ycursor - group_vgap
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Draw boxes
+    for neuron in ordered_neurons:
+        ypos = ypos_map[neuron]
+        for xi, beh in enumerate(behaviors):
+            xpos = xi * (bw + hspace)
+            val = data_dict[neuron][beh]
+
+            if use_pval_log10 and nonsig_color is not None:
+                # Missing or nonsignificant → gray
+                color = nonsig_color if np.isnan(val) or val == 0.0 else cmap_obj(norm(val))
+            else:
+                # Fold-change mode: missing values are gray
+                color = nonsig_color if np.isnan(val) else cmap_obj(norm(val))
+
+            rect = Rectangle(
+                (xpos, ypos),
+                bw,
+                bh,
+                facecolor=color,
+                edgecolor="black",
+                linewidth=edge_lw,
+                clip_on=False
+            )
+            ax.add_patch(rect)
+
+    # X ticks
+    xtick_positions = [xi * (bw + hspace) + bw / 2.0 for xi in range(n_beh)]
+    ax.set_xticks(xtick_positions)
+    ax.set_xticklabels(behaviors)
+    ax.xaxis.tick_top()
+    ax.tick_params(axis="x", which="both", length=0, pad=8)
+
+    # Y ticks
+    ax.set_yticks(ytick_positions)
+    ax.set_yticklabels(ytick_labels)
+    ax.tick_params(axis="y", which="both", length=0)
+
+    # Group labels
+    for g, (start_y, end_y) in group_positions.items():
+        ymid = (start_y + end_y) / 2.0 + bh / 2.0
+        ax.text(
+            -(hspace + bw) * 2.5,
+            ymid,
+            format_group_label(g),
+            ha="center",
+            va="center",
+            fontsize=12,
+            rotation=90
+        )
+
+    # Limits
+    ax.set_xlim(-margin, total_width + margin)
+    ax.set_ylim(-margin, total_height + margin)
+    ax.set_aspect("equal")
+
+    # Remove spines
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    # Colorbar
+    sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap_obj)
+    sm.set_array(all_values)
+    cbar = fig.colorbar(sm, ax=ax, fraction=0.06, pad=0.03)
+    cbar_label = "Signed -log10(adj p-value)" if use_pval_log10 else "Fold change"
+    cbar.set_label(cbar_label,fontsize=16)
+
+    # --- Modify colorbar tick labels if clipping happened ---
+    ticks = cbar.get_ticks()
+    ticklabels = [f"{t:.2g}" for t in ticks]
+
+    # Check if data exceeded manual limits
+    if v_min < vmin:
+        ticklabels[0] = f"<= {ticklabels[0]}"
+    if v_max > vmax:
+        ticklabels[-1] = f">= {ticklabels[-1]}"
+
+    cbar.set_ticks(ticks)
+    cbar.set_ticklabels(ticklabels)
+
+    return ax, fig, ordered_neurons
+
+
+def assign_and_sort_neurons(
+        df: pd.DataFrame,
+        groups: list,
+        value_col: str = "log2_fc",
+        neuron_order: list = None,  # <-- optional input
+):
+    """
+    Assign neurons to user-specified groups and optionally order them.
+
+    - df neurons are assumed to already be in base format.
+    - Group definitions are normalized with get_neuron_base.
+    - If a neuron belongs to multiple groups, assign to the smallest one.
+    - Neurons not in any group go into 'other'.
+    - Within each group, neurons are ordered by descending fold change unless neuron_order is provided.
+
+    Returns:
+        ordered_neurons: list of neurons in plotting order
+        neuron_assignment: dict neuron -> group
+    """
+
+    # Ensure neuron column exists
+    if "Neuron" not in df.columns:
+        df = df.copy()
+        df["Neuron"] = df.index.to_series().str.split("_").str[0]
+
+    # Normalize group definitions (convert L/R → base)
+    group_dict = {g: set(get_neuron_base(n) for n in neuron_groups(g)) for g in groups}
+
+    # Build neuron -> candidate groups map
+    neuron_to_groups = {}
+    for g, members in group_dict.items():
+        for n in members:
+            neuron_to_groups.setdefault(n, []).append(g)
+
+    # Resolve conflicts + add "other"
+    neuron_assignment = {}
+    neurons_to_assign = neuron_order if neuron_order is not None else df["Neuron"].unique()
+    for neuron in neurons_to_assign:
+        if neuron not in neuron_to_groups:
+            neuron_assignment[neuron] = "other"
+        else:
+            g_list = neuron_to_groups[neuron]
+            if len(g_list) == 1:
+                neuron_assignment[neuron] = g_list[0]
+            else:
+                chosen = min(g_list, key=lambda g: len(group_dict[g]))
+                neuron_assignment[neuron] = chosen
+
+    # Compute max fold change per neuron for sorting
+    fc_map = df.groupby("Neuron")[value_col].max().to_dict()
+
+    # Build ordered list
+    if neuron_order is not None:
+        # Keep the user-provided order
+        ordered_neurons = neuron_order.copy()
+        # Include any extra neurons in df not in neuron_order at the end
+        for n in df["Neuron"].unique():
+            if n not in ordered_neurons:
+                ordered_neurons.append(n)
+    else:
+        # Sort within groups by descending fold change
+        ordered_neurons = []
+        for g in groups + ["other"]:
+            group_neurons = [n for n, grp in neuron_assignment.items() if grp == g]
+            group_neurons_sorted = sorted(group_neurons, key=lambda n: fc_map.get(n, -np.inf), reverse=True)
+            ordered_neurons.extend(group_neurons_sorted)
+
+    return ordered_neurons, neuron_assignment

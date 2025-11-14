@@ -33,7 +33,7 @@ from wbfm.utils.visualization.plot_traces import make_grid_plot_from_dataframe
 import seaborn as sns
 from wbfm.utils.visualization.filtering_traces import fill_nan_in_dataframe
 import plotly.express as px
-from wbfm.utils.general.hardcoded_paths import get_hierarchical_modeling_dir
+from wbfm.utils.general.utils_hardcoded import get_hierarchical_modeling_dir
 
 from wbfm.utils.general.utils_filenames import add_name_suffix
 
@@ -62,7 +62,7 @@ from wbfm.utils.general.utils_filenames import add_name_suffix
 # In[6]:
 
 
-from wbfm.utils.general.hardcoded_paths import load_all_data_as_dataframe
+from wbfm.utils.general.utils_hardcoded import load_all_data_as_dataframe
 
 
 # In[7]:
@@ -117,7 +117,7 @@ Xy['dataset_name'].apply(lambda x: 'hiscl' in x)
 # In[17]:
 
 
-from wbfm.utils.general.hardcoded_paths import neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import neurons_with_confident_ids
 from wbfm.utils.general.utils_paper import apply_figure_settings, plotly_paper_color_discrete_map, data_type_name_mapping
 
 

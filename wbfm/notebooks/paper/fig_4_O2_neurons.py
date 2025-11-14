@@ -40,7 +40,7 @@ from wbfm.utils.traces.gui_kymograph_correlations import build_all_gui_dfs_multi
 
 
 # Load multiple datasets
-from wbfm.utils.general.hardcoded_paths import load_paper_datasets
+from wbfm.utils.general.utils_hardcoded import load_paper_datasets
 all_projects_O2_fm = load_paper_datasets(['hannah_O2_fm', 'gcamp'])
 all_projects_O2_fm_mutant = load_paper_datasets('hannah_O2_fm_mutant')
 all_projects_O2_immob_mutant = load_paper_datasets('hannah_O2_immob_mutant')
@@ -1314,8 +1314,8 @@ for name, trigger_class in tqdm(all_classes.items()):
 # In[ ]:
 
 
-from wbfm.utils.general.hardcoded_paths import get_triggered_average_dataframe_fname, get_all_trigger_suffixes, get_triggered_average_modeling_dir
-from wbfm.utils.general.hardcoded_paths import neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import get_triggered_average_dataframe_fname, get_all_trigger_suffixes, get_triggered_average_modeling_dir
+from wbfm.utils.general.utils_hardcoded import neurons_with_confident_ids
 
 
 # In[ ]:
@@ -1346,7 +1346,7 @@ for suffix in tqdm(all_trigger_suffixes):
 # In[ ]:
 
 
-from wbfm.utils.general.hardcoded_paths import excel_event_full_description
+from wbfm.utils.general.utils_hardcoded import excel_event_full_description
 from wbfm.utils.general.utils_paper import add_figure_panel_references_to_df
 all_events_dict = {}
 

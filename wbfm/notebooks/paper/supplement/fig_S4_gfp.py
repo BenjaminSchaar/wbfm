@@ -40,7 +40,7 @@ from wbfm.utils.general.utils_filenames import add_name_suffix
 
 
 # Load multiple datasets
-from wbfm.utils.general.hardcoded_paths import load_paper_datasets
+from wbfm.utils.general.utils_hardcoded import load_paper_datasets
 all_projects_gcamp = load_paper_datasets('gcamp')
 all_projects_gfp = load_paper_datasets('gfp')
 
@@ -328,7 +328,7 @@ fig.write_image(fname)
 
 
 
-from wbfm.utils.general.hardcoded_paths import get_hierarchical_modeling_dir
+from wbfm.utils.general.utils_hardcoded import get_hierarchical_modeling_dir
 fname = os.path.join(get_hierarchical_modeling_dir(), 'data.h5')
 Xy = pd.read_hdf(fname)
 

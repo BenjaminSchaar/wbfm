@@ -83,7 +83,7 @@ if to_save:
 # In[1]:
 
 
-from wbfm.utils.general.hardcoded_paths import load_all_paper_datasets
+from wbfm.utils.general.utils_hardcoded import load_all_paper_datasets
 all_projects = load_all_paper_datasets()
 
 

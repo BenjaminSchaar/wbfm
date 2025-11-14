@@ -39,7 +39,7 @@ from tqdm.auto import tqdm
 
 from wbfm.utils.projects.neuropal_manager import NeuropalManager
 from wbfm.utils.traces.triggered_averages import plot_triggered_average_from_matrix_low_level
-from wbfm.utils.general.hardcoded_paths import read_names_of_neurons_to_id, neurons_with_confident_ids
+from wbfm.utils.general.utils_hardcoded import read_names_of_neurons_to_id, neurons_with_confident_ids
 from wbfm.utils.external.utils_pandas import dataframe_to_numpy_zxy_single_frame, df_to_matches, \
     get_column_name_from_time_and_column_value, fix_extra_spaces_in_dataframe_columns, \
     get_contiguous_blocks_from_column, make_binary_vector_from_starts_and_ends, fill_missing_indices_with_nan, \
@@ -1346,9 +1346,9 @@ class ProjectData:
         """Copy all paper traces from the .cache folder to the traces folder"""
         source_folder = self.data_cacher.cache_dir
         target_folder = self.project_config.get_traces_config().absolute_subfolder
-        # Copy every .h5 file
+        # Copy a set of .h5 files
         for fname in os.listdir(source_folder):
-            if fname.endswith('.h5'):
+            if fname in ['paper_traces.h5', 'paper_traces_red.h5', 'paper_traces_green.h5', 'paper_traces_no_interpolation.h5']:
                 source_path = os.path.join(source_folder, fname)
                 target_path = os.path.join(target_folder, fname)
                 shutil.copy(source_path, target_path)
