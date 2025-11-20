@@ -135,6 +135,14 @@ This will save everything by default.
 None of the trace dataframes will be automatically updated with new neuron IDs.
 See the [tutorial notebook](https://github.com/Zimmer-lab/wbfm/blob/dev/wbfm/notebooks/tutorials/remake_paper_traces.ipynb) for step by step instructions to regenerate these dataframes.
 
+### Loading Neuropal Stacks in the GUI
+
+There are 2 main steps that have to happen in order to be able to open NeuroPal stacks in the Napari viewer. 
+
+1. NeuroPAL stack has to be copied into the project folder (see: [wbfm/scripts/postprocessing/0+add_neuropal_to_project.py](https://github.com/Zimmer-lab/wbfm/blob/a3881cfca2eccead8dc1e425cf77f6d25cee005c/wbfm/scripts/postprocessing/0%2Badd_neuropal_to_project.py))
+2. NeuroPAL stack has to be segmented (see: [0+segment_neuropal_in_project.py](https://github.com/Zimmer-lab/wbfm/blob/a3881cfca2eccead8dc1e425cf77f6d25cee005c/wbfm/scripts/postprocessing/0%2Bsegment_neuropal_in_project.py))
+
+
 ### Detailed explanation: tracklet/segmentation correction
 
 We have created a [YouTube](https://youtube.com/playlist?list=PL0LLlJzm-VqQhX4Kw2KqoeccJVk4jhPS3) tutorial playlist.
