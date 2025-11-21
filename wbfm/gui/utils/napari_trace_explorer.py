@@ -361,6 +361,121 @@ class NapariTraceExplorer(QtWidgets.QWidget):
             print(f"Warning: Could not load custom timeseries: {e}")
             self.custom_timeseries = pd.DataFrame()
 
+    def _check_behavior_files_availability(self) -> List[str]:
+        """
+        Check which behavior data files exist and return list of available behaviors.
+        Only behaviors with existing data files should appear in dropdown.
+        """
+        print("🔍 DEBUG: Checking behavior file availability...")
+        available_behaviors = []
+        
+        try:
+            # Get the worm posture class which handles file loading
+            posture_class = self.dat.worm_posture_class
+            
+            # Check each behavior type and its required files
+            behavior_file_mapping = {
+                # Curvature-based behaviors
+                'head_curvature': 'filename_curvature',
+                'body_curvature': 'filename_curvature', 
+                'summed_curvature': 'filename_curvature',
+                'summed_signed_curvature': 'filename_curvature',
+                'head_unsigned_curvature': 'filename_curvature',
+                'quantile_curvature': 'filename_curvature',
+                'quantile_head_curvature': 'filename_curvature',
+                'ventral_only_body_curvature': 'filename_curvature',
+                'dorsal_only_body_curvature': 'filename_curvature',
+                'ventral_only_head_curvature': 'filename_curvature',
+                'dorsal_only_head_curvature': 'filename_curvature',
+                'interpolated_ventral_midbody_curvature': 'filename_curvature',
+                'interpolated_ventral_head_curvature': 'filename_curvature',
+                'interpolated_dorsal_midbody_curvature': 'filename_curvature',
+                'interpolated_dorsal_head_curvature': 'filename_curvature',
+                
+                # Position/speed based behaviors
+                'signed_stage_speed': 'filename_table_position',
+                'abs_stage_speed': 'filename_table_position',
+                'middle_body_speed': 'filename_x',  # Requires centerline
+                'signed_middle_body_speed': 'filename_x',
+                'signed_speed_angular': 'filename_x',
+                'worm_speed_average_all_segments': 'filename_x',
+                
+                # Frequency/peak behaviors
+                'worm_nose_peak_frequency': 'filename_hilbert_frequency',
+                'worm_head_peak_frequency': 'filename_hilbert_frequency', 
+                'worm_speed_body_peak_frequency': 'filename_hilbert_frequency',
+                'worm_speed_head_cast_frequency': 'filename_hilbert_frequency',
+                'worm_speed_nose_cast_frequency': 'filename_hilbert_frequency',
+                
+                # State-based behaviors
+                'self_collision': 'filename_x',  # Computed from centerline
+                'head_cast': 'filename_head_cast_annotation',
+                'pause': 'filename_x',  # Computed from movement
+                'slowing': 'filename_x',  # Computed from movement
+                
+                # Distribution behaviors
+                'fwd_empirical_distribution': 'filename_x',
+                'rev_empirical_distribution': 'filename_x',
+                'speed_plateau_piecewise_linear_onset': 'filename_x',
+                'speed_plateau_piecewise_linear_offset': 'filename_x',
+                
+                # Binary state behaviors (from BehaviorCodes)
+                'fwd': 'filename_x',  # Computed from movement
+                'rev': 'filename_x',  # Computed from movement  
+                'ventral_turn': 'filename_curvature',
+                'dorsal_turn': 'filename_curvature',
+                'quiescence': 'filename_manual_beh_annotation',  # Manually annotated behavior
+                'supercoil': 'filename_manual_beh_annotation',  # Manually annotated behavior
+                'stimulus': 'filename_stimulus',
+                'not_annotated': 'always_available',
+                'unknown': 'always_available', 
+                'tracking_failure': 'always_available',
+                'custom': 'always_available'
+            }
+            
+            print(f"🔍 DEBUG: Checking {len(behavior_file_mapping)} behavior file dependencies...")
+            
+            for behavior, file_attr in behavior_file_mapping.items():
+                try:
+                    if file_attr == 'always_available':
+                        available_behaviors.append(behavior)
+                        print(f"✅ {behavior}: Always available")
+                        continue
+                        
+                    # Check if the required file attribute exists and points to a real file
+                    if hasattr(posture_class, file_attr):
+                        filename = getattr(posture_class, file_attr)
+                        if filename is not None:
+                            from pathlib import Path
+                            if Path(filename).exists():
+                                available_behaviors.append(behavior)
+                                print(f"✅ {behavior}: File exists ({Path(filename).name})")
+                            else:
+                                print(f"❌ {behavior}: File missing ({filename})")
+                        else:
+                            print(f"❌ {behavior}: No filename set for {file_attr}")
+                    else:
+                        print(f"❌ {behavior}: No {file_attr} attribute")
+                        
+                except Exception as e:
+                    print(f"❌ {behavior}: Error checking file - {e}")
+                    continue
+            
+            print(f"🔍 DEBUG: Found {len(available_behaviors)} available behaviors out of {len(behavior_file_mapping)} total")
+            
+        except Exception as e:
+            print(f"❌ ERROR: Exception in behavior file checking: {e}")
+            # Fallback: if checking fails, return all behaviors (backward compatibility)
+            from wbfm.utils.general.postures.centerline_classes import WormFullVideoPosture
+            from wbfm.utils.general.utils_behavior_annotation import BehaviorCodes
+            available_behaviors = ['signed_stage_speed', 'rev', 'fwd', 'abs_stage_speed',
+                                 'middle_body_speed', 'signed_middle_body_speed', 'signed_speed_angular',
+                                 'worm_speed_average_all_segments', 'summed_curvature', 'summed_signed_curvature']
+            available_behaviors.extend(BehaviorCodes.possible_behavior_aliases())
+            print(f"🔍 DEBUG: Fallback - returning all {len(available_behaviors)} behaviors")
+        
+        return available_behaviors
+
     def _setup_trace_filtering_buttons(self):
         # Change traces (dropdown)
         self.groupBox2TraceCalculation = QtWidgets.QGroupBox("Trace calculation options", self.verticalLayoutWidget)
@@ -456,9 +571,27 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         neuron_names_and_none.insert(0, "None")
         print(f"🔍 DROPDOWN: After adding 'None': {len(neuron_names_and_none)} items")
         
-        behavior_aliases = WormFullVideoPosture.beh_aliases_stable()
-        neuron_names_and_none.extend(behavior_aliases)
-        print(f"🔍 DROPDOWN: After adding {len(behavior_aliases)} behavior aliases: {len(neuron_names_and_none)} items")
+        # Check which behaviors have required files available
+        print(f"🔍 DROPDOWN: Checking behavior file availability...")
+        available_behaviors = self._check_behavior_files_availability()
+        print(f"🔍 DROPDOWN: Available behaviors returned: {available_behaviors[:10]}{'...' if len(available_behaviors) > 10 else ''}")
+        
+        # Get the full list of possible behaviors
+        all_behavior_aliases = WormFullVideoPosture.beh_aliases_stable()
+        print(f"🔍 DROPDOWN: All possible behaviors: {len(all_behavior_aliases)} total")
+        print(f"🔍 DROPDOWN: First 10 possible behaviors: {all_behavior_aliases[:10]}")
+        
+        # Filter to only include behaviors that have required files
+        working_behaviors = [b for b in all_behavior_aliases if b in available_behaviors]
+        missing_behaviors = [b for b in all_behavior_aliases if b not in available_behaviors]
+        
+        print(f"🔍 DROPDOWN: Working behaviors to add: {len(working_behaviors)}")
+        print(f"🔍 DROPDOWN: Working behaviors list: {working_behaviors[:10]}{'...' if len(working_behaviors) > 10 else ''}")
+        print(f"🔍 DROPDOWN: Missing behaviors excluded: {len(missing_behaviors)}")
+        print(f"🔍 DROPDOWN: Missing behaviors list: {missing_behaviors[:10]}{'...' if len(missing_behaviors) > 10 else ''}")
+        
+        neuron_names_and_none.extend(working_behaviors)
+        print(f"🔍 DROPDOWN: After adding {len(working_behaviors)} available behavior aliases: {len(neuron_names_and_none)} items")
         
         # Add custom timeseries to the dropdown
         print(f"🔍 DROPDOWN: Checking for custom timeseries...")
