@@ -32,8 +32,110 @@ from wbfm.gui.utils.utils_gui import zoom_using_layer_in_viewer, change_viewer_t
 from wbfm.utils.external.utils_pandas import build_tracks_from_dataframe
 from wbfm.utils.projects.finished_project_data import ProjectData
 import time
+from pathlib import Path
+from scipy import interpolate
 
 # cgitb.enable(format='text')
+
+
+def _load_custom_timeseries_csvs(custom_timeseries_path: Path) -> pd.DataFrame:
+    """
+    Load all CSV files from custom_timeseries folder and validate format.
+    
+    Parameters
+    ----------
+    custom_timeseries_path : Path
+        Path to custom_timeseries folder
+        
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with custom timeseries data, columns are timeseries names
+    """
+    if not custom_timeseries_path.exists():
+        return pd.DataFrame()
+    
+    custom_data = {}
+    # Filter out macOS resource fork files (._*)
+    csv_files = [f for f in custom_timeseries_path.glob("*.csv") if not f.name.startswith("._")]
+    
+    if len(csv_files) == 0:
+        return pd.DataFrame()
+    
+    for csv_file in csv_files:
+        try:
+            # Load CSV and validate format
+            df_custom = pd.read_csv(csv_file)
+            
+            # Clean column names (remove whitespace, BOM, etc.)
+            df_custom.columns = df_custom.columns.str.strip()
+            
+            # Validate required columns
+            if list(df_custom.columns) != ['frame', 'value']:
+                print(f"WARNING: Custom timeseries file {csv_file.name} has incorrect format. Expected columns: ['frame', 'value'], got: {list(df_custom.columns)}. Skipping.")
+                continue
+                
+            # Validate data types
+            if not pd.api.types.is_numeric_dtype(df_custom['frame']) or not pd.api.types.is_numeric_dtype(df_custom['value']):
+                print(f"WARNING: Custom timeseries {csv_file.name} has non-numeric data. Skipping.")
+                continue
+            
+            # Set frame as index and use filename (without .csv) as column name
+            timeseries_name = csv_file.stem
+            df_custom = df_custom.set_index('frame')
+            custom_data[timeseries_name] = df_custom['value']
+            
+        except Exception as e:
+            print(f"WARNING: Could not load custom timeseries {csv_file.name}: {e}")
+            continue
+    
+    if len(custom_data) == 0:
+        return pd.DataFrame()
+    
+    # Combine all custom timeseries into a single DataFrame
+    df_result = pd.DataFrame(custom_data)
+    return df_result
+
+
+def _downsample_custom_timeseries(df_custom: pd.DataFrame, target_length: int) -> pd.DataFrame:
+    """
+    Downsample custom timeseries to match target frame count.
+    
+    Parameters
+    ----------
+    df_custom : pd.DataFrame
+        Custom timeseries data with frame index
+    target_length : int
+        Target number of frames to match traces
+        
+    Returns
+    -------
+    pd.DataFrame
+        Downsampled DataFrame with target_length rows
+    """
+    if df_custom.empty:
+        return df_custom
+    
+    # Create new index with target length
+    original_length = len(df_custom)
+    new_index = np.arange(target_length)
+    
+    # Interpolate each column to the new length
+    downsampled_data = {}
+    
+    for col in df_custom.columns:
+        # Create interpolation function
+        original_indices = np.linspace(0, target_length - 1, original_length)
+        f = interpolate.interp1d(original_indices, df_custom[col].values, 
+                               kind='linear', bounds_error=False, fill_value='extrapolate')
+        
+        # Apply interpolation
+        downsampled_data[col] = f(new_index)
+    
+    df_downsampled = pd.DataFrame(downsampled_data, index=new_index)
+    
+    print(f"Downsampled custom timeseries from {original_length} to {target_length} frames")
+    return df_downsampled
 
 
 class NapariTraceExplorer(QtWidgets.QWidget):
@@ -57,6 +159,7 @@ class NapariTraceExplorer(QtWidgets.QWidget):
     manualNeuronNameEditor: NeuronNameEditor = None
 
     logger: logging.Logger = None
+    custom_timeseries: pd.DataFrame = None
 
     _disable_callbacks = False
 
@@ -71,6 +174,9 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         self.verticalLayout = QtWidgets.QVBoxLayout(self.verticalLayoutWidget)
         self.dat = project_data
         self.main_window = app
+        
+        # Load custom timeseries if available
+        self._load_custom_timeseries()
 
         # https://stackoverflow.com/questions/12781407/how-do-i-resize-the-contents-of-a-qscrollarea-as-more-widgets-are-placed-inside
         # scroll = QtWidgets.QScrollArea()
@@ -219,6 +325,42 @@ class NapariTraceExplorer(QtWidgets.QWidget):
 
         self.logger.debug("Finished main UI setup")
 
+    def _load_custom_timeseries(self):
+        """Load custom timeseries from behavior/custom_timeseries folder"""
+        try:
+            if not hasattr(self.dat, 'project_config') or not hasattr(self.dat.project_config, 'project_dir'):
+                self.custom_timeseries = pd.DataFrame()
+                return
+            
+            # Get project folder from the project data
+            project_folder = Path(self.dat.project_config.project_dir)
+            custom_timeseries_path = project_folder.joinpath('behavior/custom_timeseries')
+            
+            # Load raw custom timeseries data
+            df_custom_raw = _load_custom_timeseries_csvs(custom_timeseries_path)
+            
+            if not df_custom_raw.empty:
+                # Get target length from trace data
+                target_length = None
+                if hasattr(self.dat, 'x_for_plots') and self.dat.x_for_plots is not None:
+                    target_length = len(self.dat.x_for_plots)
+                elif hasattr(self.dat, 'red_traces') and self.dat.red_traces is not None:
+                    target_length = len(self.dat.red_traces)
+                elif hasattr(self.dat, 'green_traces') and self.dat.green_traces is not None:
+                    target_length = len(self.dat.green_traces)
+                else:
+                    target_length = len(df_custom_raw)
+                
+                # Downsample custom timeseries to match trace length
+                self.custom_timeseries = _downsample_custom_timeseries(df_custom_raw, target_length)
+                print(f"Loaded {len(self.custom_timeseries.columns)} custom timeseries: {list(self.custom_timeseries.columns)}")
+            else:
+                self.custom_timeseries = pd.DataFrame()
+                
+        except Exception as e:
+            print(f"Warning: Could not load custom timeseries: {e}")
+            self.custom_timeseries = pd.DataFrame()
+
     def _setup_trace_filtering_buttons(self):
         # Change traces (dropdown)
         self.groupBox2TraceCalculation = QtWidgets.QGroupBox("Trace calculation options", self.verticalLayoutWidget)
@@ -302,14 +444,50 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         # self.changeTrackingOutlierCheckBox.stateChanged.connect(self.update_trace_subplot)
         # self.formlayout3.addRow("Remove outliers (tracking confidence)?", self.changeTrackingOutlierCheckBox)
 
-        # Add reference neuron trace (also allows behaviors) (dropdown)
+        # Add reference neuron trace (also allows behaviors and custom timeseries) (dropdown)
+        print("\n" + "="*60)
+        print("🔍 DROPDOWN CREATION: Setting up Reference Trace dropdown")
+        print("="*60)
+        
         self.changeReferenceTrace = QtWidgets.QComboBox()
-        neuron_names_and_none = self.dat.neuron_names
+        neuron_names_and_none = self.dat.neuron_names.copy()
+        print(f"🔍 DROPDOWN: Starting with {len(neuron_names_and_none)} neuron names")
+        
         neuron_names_and_none.insert(0, "None")
-        neuron_names_and_none.extend(WormFullVideoPosture.beh_aliases_stable())
+        print(f"🔍 DROPDOWN: After adding 'None': {len(neuron_names_and_none)} items")
+        
+        behavior_aliases = WormFullVideoPosture.beh_aliases_stable()
+        neuron_names_and_none.extend(behavior_aliases)
+        print(f"🔍 DROPDOWN: After adding {len(behavior_aliases)} behavior aliases: {len(neuron_names_and_none)} items")
+        
+        # Add custom timeseries to the dropdown
+        print(f"🔍 DROPDOWN: Checking for custom timeseries...")
+        print(f"🔍 DROPDOWN: hasattr(self, 'custom_timeseries'): {hasattr(self, 'custom_timeseries')}")
+        
+        if hasattr(self, 'custom_timeseries'):
+            print(f"🔍 DROPDOWN: self.custom_timeseries type: {type(self.custom_timeseries)}")
+            print(f"🔍 DROPDOWN: self.custom_timeseries.empty: {self.custom_timeseries.empty}")
+            if not self.custom_timeseries.empty:
+                print(f"🔍 DROPDOWN: self.custom_timeseries shape: {self.custom_timeseries.shape}")
+                print(f"🔍 DROPDOWN: self.custom_timeseries columns: {list(self.custom_timeseries.columns)}")
+                
+                custom_timeseries_names = [f"custom:{name}" for name in self.custom_timeseries.columns]
+                neuron_names_and_none.extend(custom_timeseries_names)
+                print(f"🔍 DROPDOWN SUCCESS: Added {len(custom_timeseries_names)} custom timeseries to dropdown")
+                print(f"🔍 DROPDOWN: Custom names added: {custom_timeseries_names}")
+                print(f"🔍 DROPDOWN: Final dropdown will have {len(neuron_names_and_none)} total items")
+            else:
+                print(f"🔍 DROPDOWN: custom_timeseries exists but is empty")
+        else:
+            print(f"🔍 DROPDOWN: No custom_timeseries attribute found")
+        
+        print(f"🔍 DROPDOWN: Final dropdown items: {neuron_names_and_none}")
         self.changeReferenceTrace.addItems(neuron_names_and_none)
         self.changeReferenceTrace.currentIndexChanged.connect(self.update_reference_trace)
         self.formlayout3.addRow("Reference trace:", self.changeReferenceTrace)
+        
+        print("🔍 DROPDOWN: Reference trace dropdown setup complete")
+        print("="*60 + "\n")
 
     def _setup_layer_creation_buttons(self):
         self.groupBox5LayerCreation = QtWidgets.QGroupBox("New layer creation", self.verticalLayoutWidget)
@@ -1635,6 +1813,10 @@ class NapariTraceExplorer(QtWidgets.QWidget):
             # Reset line
             # self.static_ax.lines.remove(self.reference_line)
             self.remove_reference_line()
+            # Clear reference trace data
+            self.current_reference_trace_name = "None"
+            self.current_reference_trace_data = None
+            print(f"🔍 DEBUG: Cleared reference trace")
 
             if force_draw:
                 self.logger.debug("USER: force draw of reference line")
@@ -1646,6 +1828,10 @@ class NapariTraceExplorer(QtWidgets.QWidget):
             t, y = self.calculate_trace(trace_name=ref_name)
             self.reference_line.set_data(t, y)
             self.reference_line.set_visible(True)
+            # Store reference trace data for correlation calculations
+            self.current_reference_trace_name = ref_name
+            self.current_reference_trace_data = y
+            print(f"🔍 DEBUG: Stored reference trace '{ref_name}' with {len(y)} data points")
             # self.reference_line.set_ydata(y)
             if force_draw:
                 self.finish_subplot_update_and_draw(preserve_xlims=True)
@@ -1856,8 +2042,18 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         else:
             self.static_ax.autoscale(axis='both')
             self.reference_ax.autoscale(axis='both')
-        self.static_ax.relim()
-        self.reference_ax.relim()
+        
+        # Try to relim the axes, but handle singular matrix errors gracefully
+        try:
+            self.static_ax.relim()
+        except (ValueError, LinAlgError) as e:
+            self.logger.warning(f"Error during static_ax.relim(): {e}; continuing anyway")
+        
+        try:
+            self.reference_ax.relim()
+        except (ValueError, LinAlgError) as e:
+            self.logger.warning(f"Error during reference_ax.relim(): {e}; continuing anyway")
+        
         self.draw_subplot()
         y_min, y_max = self.y_min_max_on_plot
         self.logger.debug(f"Autoscaled axis: {np.nanmin(y_min)} and {np.nanmax(y_max)}")
@@ -1936,6 +2132,18 @@ class NapariTraceExplorer(QtWidgets.QWidget):
             y = self.df_of_current_traces[trace_name]
             t = self.dat.x_for_plots
             # t, y = self.dat.calculate_traces(neuron_name=trace_name, **trace_opt)
+        elif trace_name.startswith("custom:"):
+            # Handle custom timeseries
+            custom_name = trace_name.replace("custom:", "")
+            
+            if hasattr(self, 'custom_timeseries') and not self.custom_timeseries.empty and custom_name in self.custom_timeseries.columns:
+                y = self.custom_timeseries[custom_name]
+                t = self.dat.x_for_plots
+            else:
+                print(f"Warning: Custom timeseries '{custom_name}' not found")
+                # Fallback to empty data
+                t = self.dat.x_for_plots
+                y = pd.Series([0] * len(t), index=range(len(t)))
         else:
             # Assume it is a behavior name
             trace_opt = self.get_trace_opt()
@@ -2079,9 +2287,41 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         Get the correlation between the current neuron and the rest...
         for now the dataframe needs to be recalculated
         """
-        which_layers = [('heatmap', 'custom_val_to_plot', f'correlation_to_{self.current_neuron_name}_at_t_{self.t}')]
-        y = self.y_trace_mode
+        print("🔍 DEBUG CORRELATION: Starting correlation calculation...")
+        
+        # Determine what trace to use for correlation
+        # Check if there's a reference trace selected
+        if hasattr(self, 'current_reference_trace_name') and hasattr(self, 'current_reference_trace_data') and self.current_reference_trace_name != "None":
+            # Use the reference trace for correlation
+            y = self.current_reference_trace_data
+            correlation_with_name = self.current_reference_trace_name
+            print(f"🔍 DEBUG CORRELATION: Using REFERENCE trace for correlation: '{correlation_with_name}'")
+        else:
+            # Use the main neuron trace for correlation
+            y = self.y_trace_mode
+            correlation_with_name = self.current_neuron_name
+            print(f"🔍 DEBUG CORRELATION: Using MAIN neuron trace for correlation: '{correlation_with_name}'")
+        
+        which_layers = [('heatmap', 'custom_val_to_plot', f'correlation_to_{correlation_with_name}_at_t_{self.t}')]
         df = self.df_of_current_traces
+        
+        print(f"🔍 DEBUG CORRELATION: Correlation trace type = {type(y)}")
+        print(f"🔍 DEBUG CORRELATION: Correlation trace length = {len(y) if y is not None else 'None'}")
+        print(f"🔍 DEBUG CORRELATION: df (df_of_current_traces) type = {type(df)}")
+        print(f"🔍 DEBUG CORRELATION: df (df_of_current_traces) shape = {df.shape if df is not None else 'None'}")
+        
+        # Check for custom timeseries
+        if str(correlation_with_name).startswith('custom:'):
+            print(f"🔍 DEBUG CORRELATION: Correlating with custom timeseries: {correlation_with_name}")
+        
+        # Check for length mismatch
+        if y is not None and df is not None:
+            if len(y) != len(df):
+                print(f"❌ ERROR CORRELATION: Length mismatch! y={len(y)}, df={len(df)}")
+                print("🔍 DEBUG CORRELATION: This will cause correlation issues!")
+            else:
+                print(f"✅ SUCCESS CORRELATION: Lengths match! y={len(y)}, df={len(df)}")
+        
         val_to_plot = df.corrwith(y)
         # Square but keep the sign; de-emphasizes very small correlations
         val_to_plot = val_to_plot * np.abs(val_to_plot)
@@ -2098,6 +2338,11 @@ class NapariTraceExplorer(QtWidgets.QWidget):
 def napari_trace_explorer_from_config(project_path: str, app=None,
                                       load_tracklets=True, force_tracklets_to_be_sparse=True,
                                       DEBUG=False, **kwargs):
+    print("="*80)
+    print("🔍 DEBUG PROJECT LOADING: Starting napari_trace_explorer_from_config")
+    print(f"🔍 DEBUG PROJECT LOADING: project_path='{project_path}'")
+    print("="*80)
+    
     # A parent QT application must be initialized first
     os.environ["NAPARI_ASYNC"] = "1"
     # os.environ["NAPARI_PERFMON"] = "1"
@@ -2109,6 +2354,9 @@ def napari_trace_explorer_from_config(project_path: str, app=None,
     else:
         started_new_app = False
 
+    print("🔍 DEBUG PROJECT LOADING: About to load ProjectData...")
+    print(f"🔍 DEBUG PROJECT LOADING: Parameters: load_tracklets={load_tracklets}, force_tracklets_to_be_sparse={force_tracklets_to_be_sparse}")
+    
     # Build project class that has all the data
     initialization_kwargs = dict(use_custom_padded_dataframe=False,
                                  force_tracklets_to_be_sparse=force_tracklets_to_be_sparse,
@@ -2119,6 +2367,38 @@ def napari_trace_explorer_from_config(project_path: str, app=None,
                                                        to_load_segmentation_metadata=True,
                                                        to_load_frames=load_tracklets,  # This is used for ground truth comparison, which requires tracklets
                                                        initialization_kwargs=initialization_kwargs, allow_hybrid_loading=True)
+    
+    print("🔍 DEBUG PROJECT LOADING: ProjectData loaded successfully")
+    print(f"🔍 DEBUG PROJECT LOADING: project_data type: {type(project_data)}")
+    
+    # Debug project data attributes
+    if hasattr(project_data, 'project_config'):
+        print(f"🔍 DEBUG PROJECT LOADING: Has project_config: True")
+        project_config = project_data.project_config
+        print(f"🔍 DEBUG PROJECT LOADING: project_config type: {type(project_config)}")
+        if hasattr(project_config, 'project_dir'):
+            print(f"🔍 DEBUG PROJECT LOADING: project_dir='{project_config.project_dir}'")
+        else:
+            print("🔍 DEBUG PROJECT LOADING: No project_dir attribute in project_config")
+    else:
+        print("🔍 DEBUG PROJECT LOADING: No project_config attribute")
+    
+    # Check if project directory path exists
+    from pathlib import Path
+    if hasattr(project_data, 'project_config') and hasattr(project_data.project_config, 'project_dir'):
+        proj_dir = Path(project_data.project_config.project_dir)
+        custom_timeseries_path = proj_dir / "behavior" / "custom_timeseries"
+        print(f"🔍 DEBUG PROJECT LOADING: Expected custom_timeseries path: '{custom_timeseries_path}'")
+        print(f"🔍 DEBUG PROJECT LOADING: Custom timeseries path exists: {custom_timeseries_path.exists()}")
+        if custom_timeseries_path.exists():
+            csv_files = list(custom_timeseries_path.glob("*.csv"))
+            print(f"🔍 DEBUG PROJECT LOADING: Found {len(csv_files)} CSV files in custom_timeseries folder")
+            for i, csv_file in enumerate(csv_files):
+                print(f"  {i+1}. {csv_file.name}")
+        else:
+            print("🔍 DEBUG PROJECT LOADING: custom_timeseries folder does not exist")
+    else:
+        print("🔍 DEBUG PROJECT LOADING: Cannot determine project directory path")
     if DEBUG:
         logging.debug(project_data)
     # If I don't set this to false, need to debug custom dataframe here

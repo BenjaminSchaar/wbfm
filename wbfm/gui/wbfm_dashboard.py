@@ -1,4 +1,5 @@
 import argparse
+import os
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -8,6 +9,7 @@ import numpy as np
 from dash import Dash, dcc, html, Output, Input
 import plotly.express as px
 import pandas as pd
+from scipy import interpolate
 
 
 def _correlate_return_cross_terms(df0: pd.DataFrame, df1: pd.DataFrame) -> pd.DataFrame:
@@ -50,9 +52,141 @@ def _get_names_from_df(df, level=0):
     """
     Simpler copy of get_names_from_df utility
     """
-    names = list(set(df.columns.get_level_values(level)))
+    # Handle both multi-level and simple column structures
+    if hasattr(df.columns, 'nlevels') and df.columns.nlevels > 1:
+        names = list(set(df.columns.get_level_values(level)))
+    else:
+        # Simple column structure - return column names directly
+        names = list(df.columns)
     names.sort()
     return names
+
+
+def _load_custom_timeseries_csvs(custom_timeseries_path: Path) -> pd.DataFrame:
+    """
+    Load all CSV files from custom_timeseries folder and validate format.
+    
+    Parameters
+    ----------
+    custom_timeseries_path : Path
+        Path to custom_timeseries folder
+        
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with custom timeseries data, columns are timeseries names
+    """
+    print(f"Loading custom timeseries from: {custom_timeseries_path}")
+    if not custom_timeseries_path.exists():
+        print("No custom_timeseries folder found")
+        return pd.DataFrame()
+    
+    custom_data = {}
+    csv_files = list(custom_timeseries_path.glob("*.csv"))
+    
+    if len(csv_files) == 0:
+        print("No CSV files found in custom_timeseries folder")
+        return pd.DataFrame()
+    else:
+        print(f"Found {len(csv_files)} custom timeseries CSV files")
+    
+    for csv_file in csv_files:
+        try:
+            print(f"DEBUG: Attempting to load {csv_file.name}")
+            
+            # Load CSV and validate format
+            df_custom = pd.read_csv(csv_file)
+            
+            print(f"DEBUG: CSV shape: {df_custom.shape}")
+            print(f"DEBUG: CSV columns (raw): {repr(df_custom.columns.tolist())}")
+            print(f"DEBUG: CSV dtypes: {df_custom.dtypes.to_dict()}")
+            print(f"DEBUG: First few rows:\n{df_custom.head()}")
+            
+            # Clean column names (remove whitespace, BOM, etc.)
+            df_custom.columns = df_custom.columns.str.strip()
+            print(f"DEBUG: CSV columns (cleaned): {df_custom.columns.tolist()}")
+            
+            # Validate required columns
+            if list(df_custom.columns) != ['frame', 'value']:
+                print(f"ERROR: Custom timeseries file {csv_file.name} has incorrect format.")
+                print(f"Expected columns: ['frame', 'value'], got: {list(df_custom.columns)}")
+                print("Skipping this file.")
+                continue
+                
+            # Validate data types
+            if not pd.api.types.is_numeric_dtype(df_custom['frame']):
+                print(f"ERROR: 'frame' column in {csv_file.name} must be numeric. Skipping this file.")
+                print(f"DEBUG: frame column dtype: {df_custom['frame'].dtype}")
+                print(f"DEBUG: frame column sample values: {df_custom['frame'].head().tolist()}")
+                continue
+                
+            if not pd.api.types.is_numeric_dtype(df_custom['value']):
+                print(f"ERROR: 'value' column in {csv_file.name} must be numeric. Skipping this file.")
+                print(f"DEBUG: value column dtype: {df_custom['value'].dtype}")
+                print(f"DEBUG: value column sample values: {df_custom['value'].head().tolist()}")
+                continue
+            
+            # Set frame as index and use filename (without .csv) as column name
+            timeseries_name = csv_file.stem
+            df_custom = df_custom.set_index('frame')
+            custom_data[timeseries_name] = df_custom['value']
+            
+            print(f"SUCCESS: Loaded custom timeseries: {timeseries_name} ({len(df_custom)} frames)")
+            
+        except Exception as e:
+            print(f"ERROR loading custom timeseries {csv_file.name}: {e}")
+            print(f"DEBUG: Exception type: {type(e)}")
+            import traceback
+            print(f"DEBUG: Full traceback:\n{traceback.format_exc()}")
+            continue
+    
+    if len(custom_data) == 0:
+        return pd.DataFrame()
+    
+    # Combine all custom timeseries into a single DataFrame
+    df_result = pd.DataFrame(custom_data)
+    return df_result
+
+
+def _downsample_custom_timeseries(df_custom: pd.DataFrame, target_length: int) -> pd.DataFrame:
+    """
+    Downsample custom timeseries to match target frame count.
+    
+    Parameters
+    ----------
+    df_custom : pd.DataFrame
+        Custom timeseries data with frame index
+    target_length : int
+        Target number of frames to match traces
+        
+    Returns
+    -------
+    pd.DataFrame
+        Downsampled DataFrame with target_length rows
+    """
+    if df_custom.empty:
+        return df_custom
+    
+    # Create new index with target length
+    original_length = len(df_custom)
+    new_index = np.arange(target_length)
+    
+    # Interpolate each column to the new length
+    downsampled_data = {}
+    
+    for col in df_custom.columns:
+        # Create interpolation function
+        original_indices = np.linspace(0, target_length - 1, original_length)
+        f = interpolate.interp1d(original_indices, df_custom[col].values, 
+                               kind='linear', bounds_error=False, fill_value='extrapolate')
+        
+        # Apply interpolation
+        downsampled_data[col] = f(new_index)
+    
+    df_downsampled = pd.DataFrame(downsampled_data, index=new_index)
+    
+    print(f"Downsampled custom timeseries from {original_length} to {target_length} frames")
+    return df_downsampled
 
 
 @dataclass
@@ -62,17 +196,20 @@ class DashboardDataset:
     allow_public_access: bool = False
 
     df_final: pd.DataFrame = None
+    df_custom_timeseries: pd.DataFrame = None
 
     current_dataset: Optional[str] = None
     current_neuron: str = None
 
     def __post_init__(self):
         # Read data
-        if isinstance(project_path, str) and project_path.endswith('.h5'):
+        if isinstance(self.project_path, str) and self.project_path.endswith('.h5'):
             # Maybe the user passed the filename, not the project config name
-            fname = project_path
+            fname = self.project_path
+            project_folder = Path(self.project_path).parent
         else:
-            fname = Path(project_path).parent.joinpath('final_dataframes/df_final.h5')
+            project_folder = Path(self.project_path).parent
+            fname = project_folder.joinpath('final_dataframes/df_final.h5')
         self.df_final = pd.read_hdf(fname)
 
         if self.df_final.columns.nlevels == 4:
@@ -85,6 +222,34 @@ class DashboardDataset:
             self.current_dataset = None
         else:
             raise NotImplementedError
+
+        # Load custom timeseries if available
+        custom_timeseries_path = project_folder.joinpath('behavior/custom_timeseries')
+        print(f"DEBUG: Full custom timeseries path: {custom_timeseries_path}")
+        print(f"DEBUG: Path exists: {custom_timeseries_path.exists()}")
+        if custom_timeseries_path.exists():
+            files_in_folder = list(custom_timeseries_path.iterdir())
+            print(f"DEBUG: Files in custom_timeseries folder: {[f.name for f in files_in_folder]}")
+        df_custom_raw = _load_custom_timeseries_csvs(custom_timeseries_path)
+        
+        if not df_custom_raw.empty:
+            print(f"Loaded {len(df_custom_raw.columns)} custom timeseries: {list(df_custom_raw.columns)}")
+            # Get target length from traces data - access directly from df_final
+            if self.current_dataset is None:
+                df_traces = self.df_final['traces']
+            else:
+                df_traces = self.df_final[self.current_dataset]['traces']
+            
+            trace_names = _get_names_from_df(df_traces)
+            if trace_names:
+                target_length = len(df_traces[trace_names[0]])
+                self.df_custom_timeseries = _downsample_custom_timeseries(df_custom_raw, target_length)
+                print(f"Successfully integrated custom timeseries with traces (aligned to {target_length} frames)")
+            else:
+                print("WARNING: No trace data found for downsampling custom timeseries")
+                self.df_custom_timeseries = df_custom_raw
+        else:
+            self.df_custom_timeseries = pd.DataFrame()
 
     def dataset_of_current_neuron(self) -> str:
         # In case current_dataset == 'all'
@@ -121,6 +286,27 @@ class DashboardDataset:
         else:
             return self.df_final[self.dataset_of_current_neuron()]['traces']
 
+    @property
+    def df_behavior_with_custom(self):
+        """
+        Combine regular behavior data with custom timeseries for correlation analysis
+        """
+        df_behavior = self.df_behavior
+        if not self.df_custom_timeseries.empty:
+            # Check if behavior data has multi-level columns
+            if hasattr(df_behavior.columns, 'nlevels') and df_behavior.columns.nlevels > 1:
+                # Flatten behavior columns for easier combination
+                df_behavior_flat = df_behavior.copy()
+                if df_behavior.columns.nlevels > 1:
+                    df_behavior_flat.columns = ['_'.join(col).strip() for col in df_behavior.columns.values]
+                combined = pd.concat([df_behavior_flat, self.df_custom_timeseries], axis=1)
+            else:
+                combined = pd.concat([df_behavior, self.df_custom_timeseries], axis=1)
+            
+            return combined
+        else:
+            return df_behavior
+
     def get_trace_type(self, trace_type: str):
         # May be a joined version of multiple datasets
         if self.current_dataset == 'all':
@@ -149,12 +335,12 @@ class DashboardDataset:
         app = Dash(__name__)
 
         # Initialize hardcoded paths to files (will open in new tab)
-        path_to_grid_plot = Path(project_path).parent.joinpath('traces').\
+        path_to_grid_plot = Path(self.project_path).parent.joinpath('traces').\
             joinpath('ratio_integration_rolling_mean_beh_pc1-grid-.png')
 
         # Define layout
         curvature_names = _get_names_from_df(self.df_curvature)
-        behavior_names = _get_names_from_df(self.df_behavior)
+        behavior_names = _get_names_from_df(self.df_behavior_with_custom)
         trace_names = _get_names_from_df(self.df_all_traces)
         neuron_names = _get_names_from_df(self.df_all_traces[trace_names[0]])
         if self.dataset_names is None:
@@ -195,7 +381,7 @@ class DashboardDataset:
         def _update_scatter_plot(x_name, y_name, neuron_name, regression_type, trace_type, current_dataset):
             self.current_dataset = current_dataset
             df_traces = self.get_trace_type(trace_type)
-            return update_scatter_plot(self.df_behavior, df_traces, x_name, y_name, neuron_name, regression_type)
+            return update_scatter_plot(self.df_behavior_with_custom, df_traces, x_name, y_name, neuron_name, regression_type)
 
         # Neuron selection updates
         # Logic: everything goes through the dropdown menu. A click will update that, which updates other things
@@ -249,7 +435,7 @@ class DashboardDataset:
         def _update_neuron_trace(neuron_name, regression_type, trace_type, current_dataset):
             self.current_dataset = current_dataset
             df_traces = self.get_trace_type(trace_type)
-            self.df_behavior_and_neurons = pd.concat([self.df_behavior, df_traces], axis=1)
+            self.df_behavior_and_neurons = pd.concat([self.df_behavior_with_custom, df_traces], axis=1)
             return update_neuron_trace_plot(self.df_behavior_and_neurons, neuron_name, regression_type)
 
         @app.callback(
@@ -263,7 +449,7 @@ class DashboardDataset:
         def _update_behavior_scatter(neuron_name, behavior_name, regression_type, trace_type, current_dataset):
             self.current_dataset = current_dataset
             df_traces = self.get_trace_type(trace_type)
-            self.df_behavior_and_neurons = pd.concat([self.df_behavior, df_traces], axis=1)
+            self.df_behavior_and_neurons = pd.concat([self.df_behavior_with_custom, df_traces], axis=1)
             return update_behavior_scatter_plot(self.df_behavior_and_neurons, behavior_name, neuron_name, regression_type)
 
         # Behavior updates
@@ -275,7 +461,7 @@ class DashboardDataset:
         )
         def _update_behavior_trace(behavior_name, regression_type, current_dataset):
             self.current_dataset = current_dataset
-            return update_behavior_trace_plot(self.df_behavior, behavior_name, regression_type)
+            return update_behavior_trace_plot(self.df_behavior_with_custom, behavior_name, regression_type)
 
         @app.callback(
             Output('kymograph-scatter', 'figure'),
@@ -289,7 +475,7 @@ class DashboardDataset:
                                       current_dataset):
             self.current_dataset = current_dataset
             df_traces = self.get_trace_type(trace_type)
-            df_all = pd.concat([self.df_behavior, self.df_curvature, df_traces], axis=1)
+            df_all = pd.concat([self.df_behavior_with_custom, self.df_curvature, df_traces], axis=1)
             return update_kymograph_scatter_plot(df_all, kymograph_segment_name, neuron_name, regression_type)
 
         @app.callback(
@@ -302,7 +488,7 @@ class DashboardDataset:
         def _update_kymograph_correlation(neuron_name, regression_type, trace_type, current_dataset):
             self.current_dataset = current_dataset
             df_traces = self.get_trace_type(trace_type)
-            return update_kymograph_correlation_per_segment(df_traces, self.df_behavior, self.df_curvature, neuron_name,
+            return update_kymograph_correlation_per_segment(df_traces, self.df_behavior_with_custom, self.df_curvature, neuron_name,
                                                             regression_type)
 
         @app.callback(
@@ -316,7 +502,7 @@ class DashboardDataset:
         def _update_kymograph_max_segment(regression_type, trace_type, neuron_name, kymograph_range, current_dataset):
             self.current_dataset = current_dataset
             df_traces = self.get_trace_type(trace_type)
-            return update_max_correlation_over_all_segment_plot(self.df_behavior, df_traces, self.df_curvature,
+            return update_max_correlation_over_all_segment_plot(self.df_behavior_with_custom, df_traces, self.df_curvature,
                                                                 regression_type,
                                                                 neuron_name, kymograph_range)
 

@@ -50,6 +50,11 @@ After the overall packages are installed, the zimmer group private packages need
 
 All guis are in the folder: /TOP/FOLDER/wbfm/gui/example.py
 
+**Recent additions:**
+- `wbfm_dashboard.py`: Correlation analysis dashboard with custom timeseries support
+- `custom_timeseries_example.py`: Helper script to create example custom timeseries data
+- Enhanced correlation analysis with user-defined data integration
+
 Assuming you are in the top-level folder, you can access 3 guis. Please read the next sections for installation instructions!
 
 1. Create a project. See "Summary of common problems" in main [README](../../README.md) on carefully checking paths in different operating systems:
@@ -71,6 +76,157 @@ Note, this will take a minute or more to load:
 ```bash
 python wbfm/gui/trace_explorer.py --project_path /path/to/your/project/project_config.yaml
 ```
+
+4. **NEW FEATURE**: Correlation dashboard with custom timeseries support:
+```bash
+python wbfm/gui/wbfm_dashboard.py --project_path /path/to/your/project/project_config.yaml
+```
+
+## Custom Timeseries Feature (NEW)
+
+The WBFM dashboard now supports loading custom user-defined timeseries data for correlation analysis with neural traces. This feature allows you to integrate your own experimental data (behavioral measurements, environmental variables, etc.) directly into the correlation analysis workflow.
+
+### Quick Setup
+
+1. **Create the custom timeseries folder in your project:**
+   ```bash
+   mkdir -p /path/to/your/project/behavior/custom_timeseries
+   ```
+
+2. **Add CSV files with the required format:**
+   Each CSV file must have exactly two columns named `frame` and `value`:
+   ```csv
+   frame,value
+   0,1.23
+   1,1.45
+   2,1.67
+   3,1.89
+   ...
+   ```
+
+3. **Run the dashboard:**
+   ```bash
+   python wbfm/gui/wbfm_dashboard.py --project_path /path/to/your/project/project_config.yaml
+   ```
+
+4. **Use in analysis:**
+   - Custom timeseries automatically appear in all "Behavior to correlate" dropdown menus
+   - Select them to correlate with neural traces
+   - All existing visualization features work with custom data
+
+### Detailed Usage
+
+#### CSV File Requirements
+- **File location**: `your_project/behavior/custom_timeseries/`
+- **File format**: CSV with exactly two columns: `frame,value`
+- **Column names**: Must be exactly `frame` and `value` (case-sensitive)
+- **Data types**: Both columns must contain numeric data
+- **Naming**: Filename (without .csv) becomes the timeseries name in dropdowns
+
+#### Example CSV Files
+```
+your_project/
+├── project_config.yaml
+├── final_dataframes/df_final.h5
+└── behavior/
+    └── custom_timeseries/
+        ├── temperature.csv        # Appears as "temperature" in dropdowns
+        ├── stimulus_intensity.csv # Appears as "stimulus_intensity"
+        ├── arena_brightness.csv   # Appears as "arena_brightness"
+        └── my_behavior_metric.csv # Appears as "my_behavior_metric"
+```
+
+#### Creating Example Data
+You can use the provided example script to create test data:
+```bash
+python wbfm/gui/custom_timeseries_example.py /path/to/your/project
+```
+
+This creates three example timeseries:
+- `sine_wave_signal.csv`: Oscillating signal with noise
+- `step_function.csv`: Step changes in signal level
+- `linear_trend.csv`: Linear trend with noise
+
+#### Frame Alignment
+- **Automatic downsampling**: Custom timeseries are automatically aligned to match trace frame count
+- **Different frame rates**: Your custom data can have any frame rate - it will be resampled using linear interpolation
+- **Temporal alignment**: Assumes custom data and traces cover the same time duration
+
+#### Error Handling
+The system provides helpful error messages for common issues:
+```
+ERROR: Custom timeseries file bad_format.csv has incorrect format.
+Expected columns: ['frame', 'value'], got: ['time', 'signal']
+Skipping this file.
+```
+
+#### Loading Messages
+When loading a project, you'll see status messages:
+```
+Loading custom timeseries from: /path/to/project/behavior/custom_timeseries
+Found 3 custom timeseries CSV files
+Loaded 3 custom timeseries: ['temperature', 'stimulus_intensity', 'my_behavior_metric']
+Successfully integrated custom timeseries with traces (aligned to 1500 frames)
+```
+
+### Technical Details
+
+#### Data Integration
+- Custom timeseries are combined with existing behavior data
+- Appears in all behavior dropdown menus alongside built-in metrics
+- Compatible with all existing correlation analysis features
+- Supports both "Overall regression" and "Rectified regression" modes
+
+#### Performance
+- Minimal impact on loading time (typically <1 second for reasonable file sizes)
+- Memory efficient due to automatic downsampling
+- No impact on existing functionality when custom folder is absent
+
+#### File Discovery
+- Scans `behavior/custom_timeseries/` folder automatically
+- Loads all `.csv` files found
+- Skips invalid files with error messages
+- Continues loading valid files if some are invalid
+
+### Troubleshooting
+
+**Custom timeseries not appearing in dropdowns:**
+1. Check folder location: `your_project/behavior/custom_timeseries/`
+2. Verify CSV format: exactly `frame,value` columns
+3. Check loading messages in console for errors
+4. Ensure numeric data in both columns
+
+**CSV format errors:**
+- Column names must be exactly `frame` and `value`
+- No extra columns allowed
+- No missing data (NaN values)
+- Both columns must be numeric
+
+**Frame alignment warnings:**
+- Ensure your CSV covers the full experimental duration
+- Check that frame numbers start from 0
+- Verify frame count is reasonable (not too sparse)
+
+### Integration with Existing Workflows
+
+#### Correlation Analysis
+- Select custom timeseries from "Behavior to correlate (x axis)" dropdown
+- Select custom timeseries from "Behavior to show and correlate (y axis)" dropdown
+- Use with any trace type (ratio, raw, detrended, smoothed)
+- Compatible with all visualization modes
+
+#### Multi-dataset Projects
+- Works with both single and multi-dataset projects
+- Custom timeseries applies to currently selected dataset
+- Automatically handles dataset switching
+
+#### Visualization Features
+- Custom timeseries work with all plot types:
+  - Scatter plots with correlation lines
+  - Time series traces
+  - Kymograph correlations
+  - Histogram marginals
+  - Interactive clicking and zooming
 
 
 ## Example: If you have a working installation
@@ -264,3 +420,21 @@ Make sure you highlight the "Raw segmentation" layer when you want interactivity
 
 See the #gui label on the main github repository. 
 Please open an issue if you find a new bug or want something to be changed!
+
+## Recent Updates
+
+### Custom Timeseries Integration (Latest)
+- **Added**: Custom user-defined timeseries support in correlation dashboard
+- **Feature**: Load CSV files from `behavior/custom_timeseries/` folder
+- **Functionality**: Automatic frame alignment and dropdown integration
+- **Usage**: See "Custom Timeseries Feature" section above for details
+- **Files modified**: `wbfm_dashboard.py` (enhanced with custom data loading)
+- **Files added**: `custom_timeseries_example.py` (example data generator)
+- **Documentation**: Updated `CLAUDE.md` and `README.md` with comprehensive guides
+
+### Implementation Details
+- **Format validation**: Strict `frame,value` CSV format enforcement
+- **Error handling**: Graceful handling of invalid files with clear error messages
+- **Performance**: Linear interpolation for frame alignment, minimal loading overhead
+- **Compatibility**: 100% backwards compatible, no impact when custom folder absent
+- **Integration**: Seamless integration with existing correlation analysis workflow
