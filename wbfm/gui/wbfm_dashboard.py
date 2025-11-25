@@ -62,7 +62,7 @@ def _get_names_from_df(df, level=0):
     return names
 
 
-def _load_custom_timeseries_csvs(custom_timeseries_path: Path) -> pd.DataFrame:
+def _load_custom_timeseries_csvs(custom_timeseries_path: Path) -> dict:
     """
     Load all CSV files from custom_timeseries folder and validate format.
     
@@ -141,16 +141,64 @@ def _load_custom_timeseries_csvs(custom_timeseries_path: Path) -> pd.DataFrame:
             continue
     
     if len(custom_data) == 0:
+        return {}
+    
+    # Return the raw data dictionary for individual processing
+    return custom_data
+
+
+def _process_individual_custom_timeseries(csv_data: dict, target_length: int) -> pd.DataFrame:
+    """
+    Process each custom timeseries individually and resample as needed.
+    
+    Parameters
+    ----------
+    csv_data : dict
+        Dictionary of {timeseries_name: Series} with raw data
+    target_length : int
+        Target number of frames to match traces
+        
+    Returns
+    -------
+    pd.DataFrame
+        Processed DataFrame with all timeseries aligned to target_length
+    """
+    if not csv_data:
         return pd.DataFrame()
     
-    # Combine all custom timeseries into a single DataFrame
-    df_result = pd.DataFrame(custom_data)
+    processed_data = {}
+    
+    for timeseries_name, series_data in csv_data.items():
+        original_length = len(series_data)
+        
+        # Check if resampling is needed for this individual file
+        if original_length == target_length:
+            print(f"Custom timeseries '{timeseries_name}' length matches target ({original_length} frames) - keeping original resolution")
+            # Reindex to ensure consistent index (0 to target_length-1)
+            processed_data[timeseries_name] = series_data.reindex(range(target_length))
+        else:
+            # Resample this individual timeseries
+            print(f"Resampling '{timeseries_name}' from {original_length} to {target_length} frames")
+            
+            # Create interpolation function for this series
+            original_indices = np.linspace(0, target_length - 1, original_length)
+            new_indices = np.arange(target_length)
+            
+            f = interpolate.interp1d(original_indices, series_data.values, 
+                                   kind='linear', bounds_error=False, fill_value='extrapolate')
+            
+            processed_data[timeseries_name] = f(new_indices)
+    
+    # Combine all processed timeseries
+    df_result = pd.DataFrame(processed_data, index=range(target_length))
+    print(f"Successfully processed {len(processed_data)} custom timeseries, all aligned to {target_length} frames")
+    
     return df_result
 
 
 def _downsample_custom_timeseries(df_custom: pd.DataFrame, target_length: int) -> pd.DataFrame:
     """
-    Downsample custom timeseries to match target frame count.
+    Resample custom timeseries to match target frame count.
     
     Parameters
     ----------
@@ -162,17 +210,23 @@ def _downsample_custom_timeseries(df_custom: pd.DataFrame, target_length: int) -
     Returns
     -------
     pd.DataFrame
-        Downsampled DataFrame with target_length rows
+        Resampled DataFrame with target_length rows
     """
     if df_custom.empty:
         return df_custom
     
-    # Create new index with target length
     original_length = len(df_custom)
+    
+    # Check if resampling is needed
+    if original_length == target_length:
+        print(f"Custom timeseries length matches target ({original_length} frames) - keeping original resolution")
+        return df_custom.copy()
+    
+    # Create new index with target length
     new_index = np.arange(target_length)
     
     # Interpolate each column to the new length
-    downsampled_data = {}
+    resampled_data = {}
     
     for col in df_custom.columns:
         # Create interpolation function
@@ -181,12 +235,17 @@ def _downsample_custom_timeseries(df_custom: pd.DataFrame, target_length: int) -
                                kind='linear', bounds_error=False, fill_value='extrapolate')
         
         # Apply interpolation
-        downsampled_data[col] = f(new_index)
+        resampled_data[col] = f(new_index)
     
-    df_downsampled = pd.DataFrame(downsampled_data, index=new_index)
+    df_resampled = pd.DataFrame(resampled_data, index=new_index)
     
-    print(f"Downsampled custom timeseries from {original_length} to {target_length} frames")
-    return df_downsampled
+    # Log the resampling operation
+    if original_length > target_length:
+        print(f"Downsampled custom timeseries from {original_length} to {target_length} frames")
+    else:
+        print(f"Upsampled custom timeseries from {original_length} to {target_length} frames")
+    
+    return df_resampled
 
 
 @dataclass
@@ -230,10 +289,10 @@ class DashboardDataset:
         if custom_timeseries_path.exists():
             files_in_folder = list(custom_timeseries_path.iterdir())
             print(f"DEBUG: Files in custom_timeseries folder: {[f.name for f in files_in_folder]}")
-        df_custom_raw = _load_custom_timeseries_csvs(custom_timeseries_path)
+        csv_data = _load_custom_timeseries_csvs(custom_timeseries_path)
         
-        if not df_custom_raw.empty:
-            print(f"Loaded {len(df_custom_raw.columns)} custom timeseries: {list(df_custom_raw.columns)}")
+        if csv_data:  # csv_data is now a dict, not a DataFrame
+            print(f"Loaded {len(csv_data)} custom timeseries: {list(csv_data.keys())}")
             # Get target length from traces data - access directly from df_final
             if self.current_dataset is None:
                 df_traces = self.df_final['traces']
@@ -243,11 +302,11 @@ class DashboardDataset:
             trace_names = _get_names_from_df(df_traces)
             if trace_names:
                 target_length = len(df_traces[trace_names[0]])
-                self.df_custom_timeseries = _downsample_custom_timeseries(df_custom_raw, target_length)
+                self.df_custom_timeseries = _process_individual_custom_timeseries(csv_data, target_length)
                 print(f"Successfully integrated custom timeseries with traces (aligned to {target_length} frames)")
             else:
                 print("WARNING: No trace data found for downsampling custom timeseries")
-                self.df_custom_timeseries = df_custom_raw
+                self.df_custom_timeseries = pd.DataFrame()
         else:
             self.df_custom_timeseries = pd.DataFrame()
 
