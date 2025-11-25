@@ -2393,14 +2393,22 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         return self.build_tracks_from_name()
 
     def color_using_behavior(self):
+        print("🔍 TRACE EXPLORER: color_using_behavior() called")
+        print(f"  Has behavior annotation: {self.dat.worm_posture_class.has_beh_annotation}")
         if self.dat.worm_posture_class.has_beh_annotation:
             additional_shaded_state = self.changeSubplotShading.currentText()
+            print(f"  Selected behavior for shading: '{additional_shaded_state}'")
             # Convert to BehaviorCodes, if valid
             if additional_shaded_state == 'none':
                 additional_shaded_states = []
+                print(f"  No behavior shading selected")
             else:
                 additional_shaded_states = [BehaviorCodes[additional_shaded_state.upper()]]
-            self.dat.shade_axis_using_behavior(self.static_ax, additional_shaded_states=additional_shaded_states)
+                print(f"  Behavior codes to shade: {additional_shaded_states}")
+            print(f"  Calling shade_axis_using_behavior with DEBUG=True")
+            self.dat.shade_axis_using_behavior(self.static_ax, additional_shaded_states=additional_shaded_states, DEBUG=True)
+        else:
+            print("  No behavior annotation available - cannot shade")
 
     def remove_behavior_shading(self):
         ax = self.static_ax

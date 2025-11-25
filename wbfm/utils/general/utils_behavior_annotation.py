@@ -1478,6 +1478,19 @@ def shade_using_behavior(beh_vector, ax=None, behaviors_to_ignore=(BehaviorCodes
 
     # Get all behaviors that exist in the data and the cmap
     beh_vector = pd.Series(beh_vector)
+    
+    # DEBUG: Print frame alignment information
+    if DEBUG:
+        print(f"🔍 BEHAVIOR SHADING DEBUG:")
+        print(f"  Behavior vector length: {len(beh_vector)}")
+        if index_conversion is not None:
+            print(f"  Index conversion length: {len(index_conversion)}")
+            print(f"  Frame length mismatch: {len(beh_vector) - len(index_conversion)} frames")
+            if len(beh_vector) > len(index_conversion):
+                print(f"  WARNING: Behavior data is {len(beh_vector) - len(index_conversion)} frames longer than traces!")
+        else:
+            print(f"  Index conversion: None (using direct indexing)")
+    
     # data_behaviors = beh_vector.unique()
     # cmap_behaviors = pd.Series(BehaviorCodes.possible_colors(include_complex_states=include_complex_states))
     # Note that this returns a numpy array in the end
@@ -1510,6 +1523,12 @@ def shade_using_behavior(beh_vector, ax=None, behaviors_to_ignore=(BehaviorCodes
 
     # Loop through the remaining behaviors, and use the binary vector to shade per behavior
     beh_vector = pd.Series(beh_vector)
+    
+    if DEBUG:
+        print(f"  About to process {len(all_behaviors)} behaviors: {all_behaviors}")
+        print(f"  Behavior vector unique values: {beh_vector.unique()}")
+        print(f"  Behavior vector sample (first 10): {beh_vector.head(10).tolist()}")
+    
     for b in all_behaviors:
         binary_vec = BehaviorCodes.vector_equality(beh_vector, b)
         color = cmap(b)
@@ -1525,16 +1544,54 @@ def shade_using_behavior(beh_vector, ax=None, behaviors_to_ignore=(BehaviorCodes
             if index_conversion is not None:
                 ax_start = index_conversion[start]
                 if end >= len(index_conversion):
-                    # Often have an off by one error
-                    ax_end = index_conversion[-1]
+                    # Often have an off by one error - behavior data is longer than traces
+                    if DEBUG:
+                        print(f"  FRAME CLIPPING: Behavior end frame {end} >= trace length {len(index_conversion)}")
+                        print(f"  Original behavior span: frames {start}-{end} ({end-start} frames)")
+                        print(f"  Clipped to: frames {start}-{len(index_conversion)-1} ({len(index_conversion)-1-start} frames)")
+                        print(f"  LOST {end - (len(index_conversion)-1)} frames of behavior data!")
+                    
+                    # Instead of clipping, extrapolate the index conversion
+                    # Assume linear frame progression
+                    if len(index_conversion) >= 2:
+                        frame_step = index_conversion[-1] - index_conversion[-2]
+                        extrapolated_end = index_conversion[-1] + frame_step * (end - (len(index_conversion) - 1))
+                        ax_end = extrapolated_end
+                        if DEBUG:
+                            print(f"  EXTRAPOLATED: Using frame step {frame_step}, extrapolated end: {extrapolated_end}")
+                    else:
+                        ax_end = index_conversion[-1]
+                        if DEBUG:
+                            print(f"  FALLBACK: Using last available frame: {ax_end}")
                 else:
                     ax_end = index_conversion[end]
             else:
                 ax_start = start
                 ax_end = end
             if DEBUG:
-                print(f'Behavior {b} from {ax_start} to {ax_end}')
-            ax.axvspan(ax_start, ax_end, alpha=alpha, color=color, zorder=-10)
+                print(f'Behavior {b} shading from {ax_start} to {ax_end} (span: {ax_end - ax_start})')
+            
+            # Try to add behavior shading, with fallback for graphics errors
+            try:
+                ax.axvspan(ax_start, ax_end, alpha=alpha, color=color, zorder=-10)
+                if DEBUG:
+                    print(f'  ✅ Successfully added shading for {b}')
+            except Exception as e:
+                if DEBUG:
+                    print(f'  ❌ Graphics error adding shading for {b}: {type(e).__name__}: {e}')
+                    print(f'  Attempting fallback method...')
+                
+                # Fallback: Try using fill_between instead of axvspan
+                try:
+                    y_min, y_max = ax.get_ylim()
+                    ax.fill_between([ax_start, ax_end], y_min, y_max, 
+                                   alpha=alpha, color=color, zorder=-10)
+                    if DEBUG:
+                        print(f'  ✅ Fallback successful for {b}')
+                except Exception as e2:
+                    if DEBUG:
+                        print(f'  ❌ Fallback also failed for {b}: {type(e2).__name__}: {e2}')
+                        print(f'  Skipping shading for this behavior span')
 
 
 def add_behavior_shading_to_plot(ind_preceding, index_conversion=None,

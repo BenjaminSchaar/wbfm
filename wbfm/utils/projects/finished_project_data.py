@@ -1701,6 +1701,17 @@ class ProjectData:
             index_conversion = self._x_physical_time
         else:
             index_conversion = None
+        
+        # Add debug info for frame alignment
+        if kwargs.get('DEBUG', False):
+            print(f"🔍 PROJECT DATA DEBUG:")
+            print(f"  Use physical time: {self.use_physical_time}")
+            print(f"  Total frames in project: {self.num_frames}")
+            if index_conversion is not None:
+                print(f"  Physical time index length: {len(index_conversion)}")
+            else:
+                print(f"  Using frame indices directly")
+        
         self.worm_posture_class.shade_using_behavior(ax=ax, plotly_fig=plotly_fig,
                                                      index_conversion=index_conversion, **kwargs)
 
