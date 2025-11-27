@@ -692,6 +692,10 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         self.addReferenceHeatmap.pressed.connect(self.add_layer_colored_by_correlation_to_current_neuron)
         self.formlayout8.addRow("Correlation to current trace:", self.addReferenceHeatmap)
 
+        self.addReferenceTraceHeatmap = QtWidgets.QPushButton("Add Layer")
+        self.addReferenceTraceHeatmap.pressed.connect(self.add_layer_colored_by_correlation_to_reference_trace)
+        self.formlayout8.addRow("Correlation to reference trace:", self.addReferenceTraceHeatmap)
+
 
     def _setup_general_shortcut_buttons(self):
         self.groupBox3b = QtWidgets.QGroupBox("General shortcuts", self.verticalLayoutWidget)
@@ -2487,49 +2491,96 @@ class NapariTraceExplorer(QtWidgets.QWidget):
 
     def add_layer_colored_by_correlation_to_current_neuron(self):
         """
-        Get the correlation between the current neuron and the rest...
-        for now the dataframe needs to be recalculated
+        Get the correlation between the current neuron and all other neurons.
+        This method always uses the currently selected neuron trace.
         """
-        print("🔍 DEBUG CORRELATION: Starting correlation calculation...")
+        print("🔍 DEBUG CURRENT CORRELATION: Starting current neuron correlation calculation...")
         
-        # Determine what trace to use for correlation
-        # Check if there's a reference trace selected
-        if hasattr(self, 'current_reference_trace_name') and hasattr(self, 'current_reference_trace_data') and self.current_reference_trace_name != "None":
-            # Use the reference trace for correlation
-            y = self.current_reference_trace_data
-            correlation_with_name = self.current_reference_trace_name
-            print(f"🔍 DEBUG CORRELATION: Using REFERENCE trace for correlation: '{correlation_with_name}'")
-        else:
-            # Use the main neuron trace for correlation
-            y = self.y_trace_mode
-            correlation_with_name = self.current_neuron_name
-            print(f"🔍 DEBUG CORRELATION: Using MAIN neuron trace for correlation: '{correlation_with_name}'")
+        # Always use the main neuron trace for correlation
+        y = self.y_trace_mode
+        correlation_with_name = self.current_neuron_name
+        print(f"🔍 DEBUG CURRENT CORRELATION: Using current neuron trace for correlation: '{correlation_with_name}'")
         
-        which_layers = [('heatmap', 'custom_val_to_plot', f'correlation_to_{correlation_with_name}_at_t_{self.t}')]
+        which_layers = [('heatmap', 'custom_val_to_plot', f'correlation_to_current_{correlation_with_name}_at_t_{self.t}')]
         df = self.df_of_current_traces
         
-        print(f"🔍 DEBUG CORRELATION: Correlation trace type = {type(y)}")
-        print(f"🔍 DEBUG CORRELATION: Correlation trace length = {len(y) if y is not None else 'None'}")
-        print(f"🔍 DEBUG CORRELATION: df (df_of_current_traces) type = {type(df)}")
-        print(f"🔍 DEBUG CORRELATION: df (df_of_current_traces) shape = {df.shape if df is not None else 'None'}")
-        
-        # Check for custom timeseries
-        if str(correlation_with_name).startswith('custom:'):
-            print(f"🔍 DEBUG CORRELATION: Correlating with custom timeseries: {correlation_with_name}")
+        print(f"🔍 DEBUG CURRENT CORRELATION: Correlation trace type = {type(y)}")
+        print(f"🔍 DEBUG CURRENT CORRELATION: Correlation trace length = {len(y) if y is not None else 'None'}")
+        print(f"🔍 DEBUG CURRENT CORRELATION: df (df_of_current_traces) type = {type(df)}")
+        print(f"🔍 DEBUG CURRENT CORRELATION: df (df_of_current_traces) shape = {df.shape if df is not None else 'None'}")
         
         # Check for length mismatch
         if y is not None and df is not None:
             if len(y) != len(df):
-                print(f"❌ ERROR CORRELATION: Length mismatch! y={len(y)}, df={len(df)}")
-                print("🔍 DEBUG CORRELATION: This will cause correlation issues!")
+                print(f"❌ ERROR CURRENT CORRELATION: Length mismatch! y={len(y)}, df={len(df)}")
+                print("🔍 DEBUG CURRENT CORRELATION: This will cause correlation issues!")
             else:
-                print(f"✅ SUCCESS CORRELATION: Lengths match! y={len(y)}, df={len(df)}")
+                print(f"✅ SUCCESS CURRENT CORRELATION: Lengths match! y={len(y)}, df={len(df)}")
         
         val_to_plot = df.corrwith(y)
         # Square but keep the sign; de-emphasizes very small correlations
         val_to_plot = val_to_plot * np.abs(val_to_plot)
         heatmap_kwargs = dict(val_to_plot=val_to_plot, t=self.t, scale_to_minus_1_and_1=True)
         self.logger.debug(f'Calculated correlation values: {val_to_plot}')
+        self.dat.add_layers_to_viewer(self.viewer, which_layers=which_layers, heatmap_kwargs=heatmap_kwargs,
+                                      layer_opt=dict(opacity=1.0))
+        # Move manual_ids to top, so they are not obscured
+        i_manual_id_layer = self.viewer.layers.index(self.get_manual_id_layer())
+        # Reorder function needs the layer index, not the name
+        self.viewer.layers.move(i_manual_id_layer, -1)
+
+    def add_layer_colored_by_correlation_to_reference_trace(self):
+        """
+        Get the correlation between the reference trace (from dropdown) and all other neurons.
+        This method always uses the reference trace selected in the dropdown.
+        """
+        print("🔍 DEBUG REFERENCE CORRELATION: Starting reference trace correlation calculation...")
+        
+        # Get the selected reference trace from dropdown
+        ref_trace_name = self.changeReferenceTrace.currentText()
+        print(f"🔍 DEBUG REFERENCE CORRELATION: Selected reference trace: '{ref_trace_name}'")
+        
+        if ref_trace_name == "None":
+            print("❌ ERROR REFERENCE CORRELATION: No reference trace selected (dropdown is set to 'None')")
+            return
+        
+        # Calculate the reference trace data
+        try:
+            t, y = self.calculate_trace(trace_name=ref_trace_name)
+            print(f"🔍 DEBUG REFERENCE CORRELATION: Successfully calculated reference trace data, length: {len(y)}")
+        except Exception as e:
+            print(f"❌ ERROR REFERENCE CORRELATION: Failed to calculate reference trace '{ref_trace_name}': {e}")
+            return
+        
+        # Use the reference trace for correlation
+        correlation_with_name = ref_trace_name
+        print(f"🔍 DEBUG REFERENCE CORRELATION: Using reference trace for correlation: '{correlation_with_name}'")
+        
+        which_layers = [('heatmap', 'custom_val_to_plot', f'correlation_to_reference_{correlation_with_name}_at_t_{self.t}')]
+        df = self.df_of_current_traces
+        
+        print(f"🔍 DEBUG REFERENCE CORRELATION: Correlation trace type = {type(y)}")
+        print(f"🔍 DEBUG REFERENCE CORRELATION: Correlation trace length = {len(y) if y is not None else 'None'}")
+        print(f"🔍 DEBUG REFERENCE CORRELATION: df (df_of_current_traces) type = {type(df)}")
+        print(f"🔍 DEBUG REFERENCE CORRELATION: df (df_of_current_traces) shape = {df.shape if df is not None else 'None'}")
+        
+        # Check for custom timeseries
+        if str(correlation_with_name).startswith('custom:'):
+            print(f"🔍 DEBUG REFERENCE CORRELATION: Correlating with custom timeseries: {correlation_with_name}")
+        
+        # Check for length mismatch
+        if y is not None and df is not None:
+            if len(y) != len(df):
+                print(f"❌ ERROR REFERENCE CORRELATION: Length mismatch! y={len(y)}, df={len(df)}")
+                print("🔍 DEBUG REFERENCE CORRELATION: This will cause correlation issues!")
+            else:
+                print(f"✅ SUCCESS REFERENCE CORRELATION: Lengths match! y={len(y)}, df={len(df)}")
+        
+        val_to_plot = df.corrwith(y)
+        # Square but keep the sign; de-emphasizes very small correlations
+        val_to_plot = val_to_plot * np.abs(val_to_plot)
+        heatmap_kwargs = dict(val_to_plot=val_to_plot, t=self.t, scale_to_minus_1_and_1=True)
+        self.logger.debug(f'Calculated reference correlation values: {val_to_plot}')
         self.dat.add_layers_to_viewer(self.viewer, which_layers=which_layers, heatmap_kwargs=heatmap_kwargs,
                                       layer_opt=dict(opacity=1.0))
         # Move manual_ids to top, so they are not obscured
