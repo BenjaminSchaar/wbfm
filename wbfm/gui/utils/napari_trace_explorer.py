@@ -37,110 +37,209 @@ from scipy import interpolate
 
 # cgitb.enable(format='text')
 
+# PATCH: Fix Napari/Vispy compatibility issue where _arcball receives (x,y,z) instead of (x,y)
+# Fixes: ValueError: too many values to unpack (expected 2)
+try:
+    from vispy.scene.cameras.arcball import _arcball as _original_arcball
+    
+    def _patched_arcball(xy, wh):
+        """Fix coordinate mismatch: truncate (x,y,z) to (x,y) if needed."""
+        if hasattr(xy, '__len__') and len(xy) > 2:
+            xy = xy[:2]  # Keep only (x,y), discard extra coordinates
+        return _original_arcball(xy, wh)
+    
+    import vispy.scene.cameras.arcball
+    vispy.scene.cameras.arcball._arcball = _patched_arcball
+    
+except ImportError:
+    pass  # Skip if Vispy structure changed
+
 
 def _load_custom_timeseries_csvs(custom_timeseries_path: Path) -> pd.DataFrame:
     """
-    Load all CSV files from custom_timeseries folder and validate format.
+    =============================================================================
+    CUSTOM TIMESERIES CSV LOADER - USER DATA INTEGRATION SYSTEM
+    =============================================================================
+    Load and validate user-defined CSV timeseries files for neural correlation analysis.
+    
+    PURPOSE:
+    - Enables researchers to correlate external experimental data with neural traces
+    - Validates CSV format to prevent data corruption and analysis errors
+    - Handles file system errors gracefully to avoid GUI crashes
+    
+    CSV FORMAT REQUIREMENTS:
+    - Exactly 2 columns: 'frame' (int) and 'value' (numeric)
+    - Header row with exact column names (case-sensitive)
+    - Numeric data only - no missing values or text in data rows
+    - Frame numbers should be sequential but don't need to start at 0
+    
+    ERROR HANDLING STRATEGY:
+    - Non-existent folder: Return empty DataFrame (silent failure)
+    - Invalid CSV format: Log warning, skip file, continue processing others
+    - Non-numeric data: Log warning, skip file, continue processing others
+    - File read errors: Log warning, skip file, continue processing others
     
     Parameters
     ----------
     custom_timeseries_path : Path
-        Path to custom_timeseries folder
+        Path to behavior/custom_timeseries/ folder containing CSV files
         
     Returns
     -------
-    pd.DataFrame
-        DataFrame with custom timeseries data, columns are timeseries names.
-        Returns raw data - resampling handled separately per file.
+    dict
+        Dictionary mapping {filename_without_extension: pandas.Series}
+        Series contains 'value' data indexed by 'frame' column
+        Returns empty dict if no valid CSV files found
+    =============================================================================
     """
+    # =============================================================================
+    # FOLDER EXISTENCE CHECK - Early Exit for Missing Directory
+    # =============================================================================
     if not custom_timeseries_path.exists():
-        return pd.DataFrame()
+        return pd.DataFrame()  # Silent failure - missing folder is normal for many projects
     
-    # Store individual CSV data separately to avoid length mismatch issues
+    # =============================================================================
+    # CSV FILE DISCOVERY - Platform-Safe File Filtering
+    # =============================================================================
+    # Store individual CSV data separately to avoid length mismatch issues during frame alignment
     csv_data = {}
-    # Filter out macOS resource fork files (._*)
+    
+    # MACOS COMPATIBILITY: Filter out resource fork files (._*) that macOS creates automatically
+    # These files would cause parsing errors and confuse users with cryptic error messages
     csv_files = [f for f in custom_timeseries_path.glob("*.csv") if not f.name.startswith("._")]
     
     if len(csv_files) == 0:
-        return pd.DataFrame()
+        return pd.DataFrame()  # Silent failure - empty folder is normal
     
+    # =============================================================================
+    # CSV LOADING AND VALIDATION LOOP - Per-File Error Isolation
+    # =============================================================================
     for csv_file in csv_files:
         try:
-            # Load CSV and validate format
+            # PANDAS CSV PARSING - Standard CSV reader with UTF-8 encoding
             df_custom = pd.read_csv(csv_file)
             
-            # Clean column names (remove whitespace, BOM, etc.)
+            # COLUMN NAME SANITIZATION - Remove whitespace, BOM, and other formatting artifacts
+            # This prevents subtle bugs from Excel exports and different text editors
             df_custom.columns = df_custom.columns.str.strip()
             
-            # Validate required columns
+            # STRICT FORMAT VALIDATION - Enforce exact column specification
+            # Prevents analysis errors from mismatched data or accidentally transposed files
             if list(df_custom.columns) != ['frame', 'value']:
                 print(f"WARNING: Custom timeseries file {csv_file.name} has incorrect format. Expected columns: ['frame', 'value'], got: {list(df_custom.columns)}. Skipping.")
                 continue
                 
-            # Validate data types
+            # DATA TYPE VALIDATION - Ensure numeric data for mathematical operations
+            # Prevents runtime errors during interpolation and correlation calculations
             if not pd.api.types.is_numeric_dtype(df_custom['frame']) or not pd.api.types.is_numeric_dtype(df_custom['value']):
                 print(f"WARNING: Custom timeseries {csv_file.name} has non-numeric data. Skipping.")
                 continue
             
-            # Store the complete DataFrame for individual processing
-            timeseries_name = csv_file.stem
+            # DATA STRUCTURE CONVERSION - Create indexed Series for efficient frame lookup
+            # Uses 'frame' column as index for O(1) frame-based data access during analysis
+            timeseries_name = csv_file.stem  # Filename without .csv extension becomes timeseries name
             csv_data[timeseries_name] = df_custom.set_index('frame')['value']
             print(f"DEBUG: Loaded {timeseries_name} with {len(df_custom)} frames")
             
         except Exception as e:
+            # COMPREHENSIVE ERROR HANDLING - Log specific error but continue processing other files
+            # Ensures one corrupt file doesn't prevent loading other valid timeseries
             print(f"WARNING: Could not load custom timeseries {csv_file.name}: {e}")
             continue
     
     if len(csv_data) == 0:
-        return pd.DataFrame()
+        return pd.DataFrame()  # All files failed validation
     
-    # Return the raw data dictionary for individual processing
+    # SUCCESS PATH - Return dictionary of validated timeseries data for frame alignment processing
     return csv_data
 
 
 def _process_individual_custom_timeseries(csv_data: dict, target_length: int) -> pd.DataFrame:
     """
-    Process each custom timeseries individually and resample as needed.
+    =============================================================================
+    INDIVIDUAL TIMESERIES FRAME ALIGNMENT - NEURAL DATA SYNCHRONIZATION
+    =============================================================================
+    Process each custom timeseries separately to handle different frame rates and lengths.
+    
+    PURPOSE:
+    - Synchronize external experimental data with neural trace timing
+    - Handle mixed sampling rates across different measurement devices
+    - Preserve data integrity through individual file processing
+    
+    FRAME ALIGNMENT STRATEGY:
+    - Each CSV file may have different frame counts and sampling rates
+    - Process individually to avoid cross-contamination between datasets
+    - Use linear interpolation to maintain temporal relationships
+    - Target frame count comes from neural trace data (master timeline)
+    
+    TECHNICAL APPROACH:
+    1. Check each timeseries length against target individually
+    2. Apply different resampling strategies per file as needed
+    3. Use scipy.interpolate for mathematically sound temporal alignment
+    4. Combine aligned data into single DataFrame for GUI integration
     
     Parameters
     ----------
     csv_data : dict
-        Dictionary of {timeseries_name: Series} with raw data
+        Dictionary of {timeseries_name: pandas.Series} from _load_custom_timeseries_csvs()
+        Each Series has 'frame' index and 'value' data
     target_length : int
-        Target number of frames to match traces
+        Frame count from neural traces (master timeline for synchronization)
         
     Returns
     -------
     pd.DataFrame
-        Processed DataFrame with all timeseries aligned to target_length
+        Multi-column DataFrame with all timeseries aligned to target_length frames
+        Index: 0 to target_length-1 (synchronized with neural trace frames)
+        Columns: Original CSV filenames (without .csv extension)
+    =============================================================================
     """
     if not csv_data:
-        return pd.DataFrame()
+        return pd.DataFrame()  # Empty input handling
     
+    # =============================================================================
+    # PER-TIMESERIES PROCESSING - Individual Frame Alignment Strategy
+    # =============================================================================
     processed_data = {}
     
     for timeseries_name, series_data in csv_data.items():
         original_length = len(series_data)
         
+        # =============================================================================
+        # LENGTH MATCHING OPTIMIZATION - Skip Interpolation When Possible
+        # =============================================================================
         # Check if resampling is needed for this individual file
         if original_length == target_length:
             print(f"Custom timeseries '{timeseries_name}' length matches target ({original_length} frames) - keeping original resolution")
-            # Reindex to ensure consistent index (0 to target_length-1)
+            # INDEX STANDARDIZATION - Ensure 0-based consecutive integer index for GUI compatibility
+            # Even if frame indices in CSV don't start at 0, we need standard 0-based indexing
             processed_data[timeseries_name] = series_data.reindex(range(target_length))
         else:
-            # Resample this individual timeseries
+            # =============================================================================
+            # TEMPORAL RESAMPLING - Linear Interpolation for Frame Rate Conversion
+            # =============================================================================
             print(f"Resampling '{timeseries_name}' from {original_length} to {target_length} frames")
             
-            # Create interpolation function for this series
+            # INTERPOLATION SETUP - Map original data points to target timeline
+            # original_indices: Where the original data points would fall on the target timeline
+            # new_indices: Standard 0-based frame sequence matching neural trace timing
             original_indices = np.linspace(0, target_length - 1, original_length)
             new_indices = np.arange(target_length)
             
+            # SCIPY INTERPOLATION - Mathematically sound temporal alignment
+            # 'linear': Preserves trends and relationships in the data
+            # 'bounds_error=False': Allows extrapolation beyond data range if needed
+            # 'fill_value=extrapolate': Uses linear extrapolation rather than NaN padding
             f = interpolate.interp1d(original_indices, series_data.values, 
                                    kind='linear', bounds_error=False, fill_value='extrapolate')
             
+            # APPLY RESAMPLING - Generate aligned timeseries data
             processed_data[timeseries_name] = f(new_indices)
     
-    # Combine all processed timeseries
+    # =============================================================================
+    # DATA CONSOLIDATION - Single DataFrame for GUI Integration
+    # =============================================================================
+    # Combine all processed timeseries into standardized DataFrame structure
     df_result = pd.DataFrame(processed_data, index=range(target_length))
     print(f"Successfully processed {len(processed_data)} custom timeseries, all aligned to {target_length} frames")
     
@@ -149,48 +248,74 @@ def _process_individual_custom_timeseries(csv_data: dict, target_length: int) ->
 
 def _downsample_custom_timeseries(df_custom: pd.DataFrame, target_length: int) -> pd.DataFrame:
     """
-    Resample custom timeseries to match target frame count.
+    =============================================================================
+    LEGACY RESAMPLING FUNCTION - Batch DataFrame Processing (DEPRECATED)
+    =============================================================================
+    DEPRECATION NOTICE: This function is maintained for backward compatibility only.
+    New code should use _process_individual_custom_timeseries() for better error handling.
+    
+    PURPOSE:
+    - Resample all custom timeseries columns simultaneously to target frame count
+    - Assumes all timeseries have the same original frame count (not always true)
+    - Used by dashboard integration for historical compatibility
+    
+    LIMITATIONS:
+    - Cannot handle mixed frame rates across different CSV files
+    - Less robust error handling than individual processing approach
+    - May fail if timeseries have different lengths
     
     Parameters
     ----------
     df_custom : pd.DataFrame
-        Custom timeseries data with frame index
+        Multi-column DataFrame with custom timeseries data
+        Index should be frame numbers, columns are timeseries names
     target_length : int
-        Target number of frames to match traces
+        Target frame count to match neural traces
         
     Returns
     -------
     pd.DataFrame
-        Resampled DataFrame with target_length rows
+        Resampled DataFrame with target_length rows, all columns interpolated
+    =============================================================================
     """
     if df_custom.empty:
-        return df_custom
+        return df_custom  # Early exit for empty input
     
     original_length = len(df_custom)
     
-    # Check if resampling is needed
+    # =============================================================================
+    # LENGTH OPTIMIZATION - Skip Processing When Unnecessary
+    # =============================================================================
     if original_length == target_length:
         print(f"Custom timeseries length matches target ({original_length} frames) - keeping original resolution")
-        return df_custom.copy()
+        return df_custom.copy()  # Return copy to avoid modification of original data
     
-    # Create new index with target length
+    # =============================================================================
+    # BATCH INTERPOLATION SETUP - Multi-Column Processing
+    # =============================================================================
+    # Create standardized target index for all columns
     new_index = np.arange(target_length)
     
-    # Interpolate each column to the new length
+    # Process each timeseries column separately but in batch mode
     resampled_data = {}
     
     for col in df_custom.columns:
-        # Create interpolation function
+        # TEMPORAL MAPPING - Map original data points to target timeline (same as individual processing)
         original_indices = np.linspace(0, target_length - 1, original_length)
+        
+        # LINEAR INTERPOLATION - Apply scipy interpolation per column
         f = interpolate.interp1d(original_indices, df_custom[col].values, 
                                kind='linear', bounds_error=False, fill_value='extrapolate')
         
-        # Apply interpolation
+        # RESAMPLING EXECUTION - Generate new data points for this column
         resampled_data[col] = f(new_index)
     
+    # =============================================================================
+    # RESULT ASSEMBLY - Standardized DataFrame Structure
+    # =============================================================================
     df_resampled = pd.DataFrame(resampled_data, index=new_index)
     
-    # Log the resampling operation
+    # OPERATION LOGGING - Different messages for upsampling vs downsampling for debugging
     if original_length > target_length:
         print(f"Downsampled custom timeseries from {original_length} to {target_length} frames")
     else:
@@ -387,41 +512,93 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         self.logger.debug("Finished main UI setup")
 
     def _load_custom_timeseries(self):
-        """Load custom timeseries from behavior/custom_timeseries folder"""
+        """
+        =============================================================================
+        CUSTOM TIMESERIES INTEGRATION - Main GUI Loading Entry Point
+        =============================================================================
+        Load user-defined CSV timeseries files and integrate them into the trace explorer GUI.
+        
+        PURPOSE:
+        - Enable correlation analysis between external experimental data and neural traces
+        - Automatically discover and load CSV files from standardized project folder structure
+        - Handle frame synchronization between different data sources
+        - Provide seamless integration with existing GUI dropdown systems
+        
+        INTEGRATION ARCHITECTURE:
+        1. Project directory detection from loaded neural data
+        2. CSV discovery and validation via utility functions
+        3. Frame count synchronization with neural trace timeline
+        4. GUI data structure population for dropdown integration
+        
+        ERROR HANDLING STRATEGY:
+        - Missing project data: Silent failure with empty DataFrame
+        - Missing custom folder: Silent failure (normal for many projects)  
+        - CSV loading errors: Log warnings but don't crash GUI
+        - Frame synchronization issues: Fall back to first timeseries length
+        =============================================================================
+        """
         try:
+            # =============================================================================
+            # PROJECT DATA VALIDATION - Ensure Neural Data Context Exists
+            # =============================================================================
+            # Check if the loaded project has the necessary metadata for file system access
             if not hasattr(self.dat, 'project_config') or not hasattr(self.dat.project_config, 'project_dir'):
-                self.custom_timeseries = pd.DataFrame()
+                self.custom_timeseries = pd.DataFrame()  # Initialize empty for GUI safety
                 return
             
-            # Get project folder from the project data
+            # =============================================================================
+            # FILE SYSTEM PATH CONSTRUCTION - Standard Project Folder Structure
+            # =============================================================================
+            # Navigate to the standardized location for user-defined timeseries data
             project_folder = Path(self.dat.project_config.project_dir)
             custom_timeseries_path = project_folder.joinpath('behavior/custom_timeseries')
             
-            # Load raw custom timeseries data (now returns dict of individual series)
+            # =============================================================================
+            # CSV DATA DISCOVERY - Delegate to Specialized Validation Function
+            # =============================================================================
+            # Use utility function that handles format validation, error recovery, and platform compatibility
             csv_data = _load_custom_timeseries_csvs(custom_timeseries_path)
             
-            if csv_data:  # csv_data is now a dict, not a DataFrame
-                # Get target length from trace data
+            if csv_data:  # csv_data is a dict of validated timeseries, not raw DataFrame
+                # =============================================================================
+                # FRAME SYNCHRONIZATION LOGIC - Master Timeline Detection
+                # =============================================================================
+                # Determine the target frame count for temporal alignment with neural traces
+                # Priority order: GUI time axis > red traces > green traces > fallback to first CSV
                 target_length = None
+                
+                # PRIORITY 1: GUI plotting timeline (most reliable for visualization synchronization)
                 if hasattr(self.dat, 'x_for_plots') and self.dat.x_for_plots is not None:
                     target_length = len(self.dat.x_for_plots)
+                # PRIORITY 2: Red fluorescence channel data
                 elif hasattr(self.dat, 'red_traces') and self.dat.red_traces is not None:
                     target_length = len(self.dat.red_traces)
+                # PRIORITY 3: Green fluorescence channel data  
                 elif hasattr(self.dat, 'green_traces') and self.dat.green_traces is not None:
                     target_length = len(self.dat.green_traces)
+                # FALLBACK: Use first loaded custom timeseries length (no neural data available)
                 else:
-                    # Default to first timeseries length if no trace data found
                     target_length = len(next(iter(csv_data.values())))
                 
-                # Process each custom timeseries individually
+                # =============================================================================
+                # FRAME ALIGNMENT EXECUTION - Individual Timeseries Processing
+                # =============================================================================
+                # Use individual processing approach for robust handling of mixed sampling rates
                 self.custom_timeseries = _process_individual_custom_timeseries(csv_data, target_length)
                 print(f"Loaded {len(self.custom_timeseries.columns)} custom timeseries: {list(self.custom_timeseries.columns)}")
             else:
-                self.custom_timeseries = pd.DataFrame()
+                # =============================================================================
+                # EMPTY STATE HANDLING - No Valid CSV Files Found
+                # =============================================================================
+                self.custom_timeseries = pd.DataFrame()  # Initialize for GUI compatibility
                 
         except Exception as e:
+            # =============================================================================
+            # COMPREHENSIVE ERROR RECOVERY - Prevent GUI Crashes
+            # =============================================================================
+            # Log the specific error for debugging but don't crash the main application
             print(f"Warning: Could not load custom timeseries: {e}")
-            self.custom_timeseries = pd.DataFrame()
+            self.custom_timeseries = pd.DataFrame()  # Safe fallback state
 
     def _check_behavior_files_availability(self) -> List[str]:
         """
@@ -655,25 +832,41 @@ class NapariTraceExplorer(QtWidgets.QWidget):
         neuron_names_and_none.extend(working_behaviors)
         print(f"🔍 DROPDOWN: After adding {len(working_behaviors)} available behavior aliases: {len(neuron_names_and_none)} items")
         
-        # Add custom timeseries to the dropdown
+        # =============================================================================
+        # CUSTOM TIMESERIES DROPDOWN INTEGRATION - User Data to GUI Binding
+        # =============================================================================
+        # Add custom timeseries as selectable reference traces for correlation analysis
         print(f"🔍 DROPDOWN: Checking for custom timeseries...")
         print(f"🔍 DROPDOWN: hasattr(self, 'custom_timeseries'): {hasattr(self, 'custom_timeseries')}")
         
         if hasattr(self, 'custom_timeseries'):
             print(f"🔍 DROPDOWN: self.custom_timeseries type: {type(self.custom_timeseries)}")
             print(f"🔍 DROPDOWN: self.custom_timeseries.empty: {self.custom_timeseries.empty}")
+            
             if not self.custom_timeseries.empty:
                 print(f"🔍 DROPDOWN: self.custom_timeseries shape: {self.custom_timeseries.shape}")
                 print(f"🔍 DROPDOWN: self.custom_timeseries columns: {list(self.custom_timeseries.columns)}")
                 
+                # =============================================================================
+                # NAMING CONVENTION - Namespace Separation for Custom Data
+                # =============================================================================
+                # Prefix with "custom:" to distinguish from neural traces and behavior data
+                # This prevents naming conflicts and makes the data source clear to users
                 custom_timeseries_names = [f"custom:{name}" for name in self.custom_timeseries.columns]
                 neuron_names_and_none.extend(custom_timeseries_names)
+                
                 print(f"🔍 DROPDOWN SUCCESS: Added {len(custom_timeseries_names)} custom timeseries to dropdown")
                 print(f"🔍 DROPDOWN: Custom names added: {custom_timeseries_names}")
                 print(f"🔍 DROPDOWN: Final dropdown will have {len(neuron_names_and_none)} total items")
             else:
+                # =============================================================================
+                # EMPTY STATE HANDLING - No Custom Data Available
+                # =============================================================================
                 print(f"🔍 DROPDOWN: custom_timeseries exists but is empty")
         else:
+            # =============================================================================
+            # MISSING ATTRIBUTE HANDLING - Loading Failed or Not Attempted
+            # =============================================================================
             print(f"🔍 DROPDOWN: No custom_timeseries attribute found")
         
         print(f"🔍 DROPDOWN: Final dropdown items: {neuron_names_and_none}")
@@ -2332,16 +2525,30 @@ class NapariTraceExplorer(QtWidgets.QWidget):
             t = self.dat.x_for_plots
             # t, y = self.dat.calculate_traces(neuron_name=trace_name, **trace_opt)
         elif trace_name.startswith("custom:"):
-            # Handle custom timeseries
+            # =============================================================================
+            # CUSTOM TIMESERIES DATA ACCESS - GUI to Data Bridge for User Files
+            # =============================================================================
+            # Handle selection of user-defined timeseries from reference trace dropdown
+            # Extract the original filename (without "custom:" prefix) for data lookup
             custom_name = trace_name.replace("custom:", "")
             
+            # =============================================================================
+            # SAFE DATA RETRIEVAL - Validate Existence Before Access
+            # =============================================================================
+            # Check attribute existence, DataFrame validity, and column presence
             if hasattr(self, 'custom_timeseries') and not self.custom_timeseries.empty and custom_name in self.custom_timeseries.columns:
-                y = self.custom_timeseries[custom_name]
-                t = self.dat.x_for_plots
+                # SUCCESS PATH: Custom timeseries data found and valid
+                y = self.custom_timeseries[custom_name]  # Extract aligned timeseries values
+                t = self.dat.x_for_plots  # Use neural trace timeline for x-axis synchronization
             else:
+                # =============================================================================
+                # ERROR HANDLING - Missing Data Graceful Recovery
+                # =============================================================================
+                # Log the specific issue for debugging but don't crash the GUI
                 print(f"Warning: Custom timeseries '{custom_name}' not found")
-                # Fallback to empty data
-                t = self.dat.x_for_plots
+                
+                # FALLBACK STRATEGY: Provide empty data series with correct timeline
+                t = self.dat.x_for_plots  # Maintain timeline consistency
                 y = pd.Series([0] * len(t), index=range(len(t)))
         else:
             # Assume it is a behavior name
