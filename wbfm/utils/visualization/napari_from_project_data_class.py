@@ -12,6 +12,8 @@ from wbfm.gui.utils.utils_gui import change_viewer_time_point
 from wbfm.utils.external.custom_errors import MissingAnalysisError, NoBehaviorAnnotationsError
 from wbfm.utils.neuron_matching.class_frame_pair import FramePair
 import napari
+from napari.utils.colormaps import DirectLabelColormap
+from collections import defaultdict
 
 from wbfm.utils.general.utils_filenames import get_sequential_filename
 from wbfm.utils.visualization.utils_napari import napari_labels_from_traces_dataframe, NapariPropertyHeatMapper, \
@@ -317,7 +319,13 @@ class NapariLayerInitializer:
             df_prop = df_prop.divide(df_prop.sum(axis=0), axis=1)
             prop_dict = {k: np.array(tuple(v) + (1.0, )) for k, v in df_prop.to_dict(orient='list').items()}
             _layer.color = prop_dict
-            _layer.color_mode = 'direct'
+            # =============================================================================
+            # NAPARI COLORMAP FIX - Convert to defaultdict for API compatibility
+            # =============================================================================
+            # DirectLabelColormap now requires defaultdict instead of regular dict
+            color_defaultdict = defaultdict(lambda: np.array([0, 0, 0, 1]))  # Default to black with alpha
+            color_defaultdict.update(prop_dict)
+            _layer.colormap = DirectLabelColormap(color_dict=color_defaultdict)
             layers_actually_added.append('Neuropal segmentation')
 
         if 'Neuropal Ids' in which_layers and project_data.neuropal_manager.segmentation is not None:
@@ -386,7 +394,13 @@ class NapariLayerInitializer:
             _layer = viewer.add_labels(seg, **_layer_opt)
             _layer.blending = 'translucent_no_depth'
             _layer.color = prop_dict
-            _layer.color_mode = 'direct'
+            # =============================================================================
+            # NAPARI COLORMAP FIX - Convert to defaultdict for API compatibility
+            # =============================================================================
+            # DirectLabelColormap now requires defaultdict instead of regular dict
+            color_defaultdict = defaultdict(lambda: np.array([0, 0, 0, 1]))  # Default to black with alpha
+            color_defaultdict.update(prop_dict)
+            _layer.colormap = DirectLabelColormap(color_dict=color_defaultdict)
 
         project_data.logger.debug(f"Finished adding layers {which_layers}")
         missed_layers = list(set(which_layers) - set(layers_actually_added))
